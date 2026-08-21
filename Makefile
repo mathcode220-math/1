@@ -1,7 +1,7 @@
 # Makefile for Silicon Agent Project
 # Automates compilation, simulation, and cleanup
 
-.PHONY: all clean sim waves behavioral help verify_modular docs
+.PHONY: all clean sim waves behavioral help verify_modular docs lint formal_verify
 
 #=============================================================================
 # Configuration
@@ -154,6 +154,27 @@ rm -rf __pycache__
 @echo "✓ Cleanup completed"
 
 #=============================================================================
+# Linting
+#=============================================================================
+lint:
+	@echo "========================================"
+	@echo "Running Verilator linter..."
+	@echo "========================================"
+	verilator --lint-only -Wall src/*.sv src/*.svh testbench/*.sv || echo "Lint warnings found (non-fatal)"
+	@echo "✓ Linting complete"
+
+#=============================================================================
+# Formal Verification
+#=============================================================================
+formal_verify: sby_config.sby
+	@echo "========================================"
+	@echo "Running formal verification with SymbiYosys..."
+	@echo "========================================"
+	sby -f sby_config.sby
+	@echo "✓ Formal verification complete"
+	@echo "Results in sby_config.*/ directories"
+
+#=============================================================================
 # Help
 #=============================================================================
 help:
@@ -170,6 +191,8 @@ help:
 @echo "  make behavioral    - Run Python behavioral model"
 @echo "  make verify        - Run full verification (behavioral + sim)"
 @echo "  make verify_modular- Run modular verification with coverage"
+@echo "  make formal_verify - Run formal verification with SymbiYosys"
+@echo "  make lint          - Run linter (Verilator)"
 @echo "  make docs          - List documentation files"
 @echo "  make clean         - Remove temporary files"
 @echo "  make help          - Show this help message"
@@ -179,4 +202,13 @@ help:
 @echo "  make verify_modular- Run modular verification with coverage"
 @echo "  make sim           - Run RTL simulation only"
 @echo "  make sim_modular   - Run modular testbench with coverage"
+@echo "  make formal_verify - Run formal verification (requires SymbiYosys)"
+@echo ""
+@echo "Hardware Implementation:"
+@echo "  Constraints files available in constraints/ directory:"
+@echo "    - silicon_agent.xdc (Xilinx FPGA)"
+@echo "    - silicon_agent.sdc (Synopsys ASIC)"
+@echo ""
+@echo "PyTorch Integration:"
+@echo "  See scripts/pytorch_bridge/README.md for setup instructions"
 @echo ""
