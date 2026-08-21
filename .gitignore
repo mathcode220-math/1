@@ -1,0 +1,40 @@
+# --- SystemVerilog & Icarus Verilog ---
+*.vcd
+*.vvp
+*.fst
+*.lxt
+*.out
+sim
+a.out
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# --- IDE & OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Results (Optional: keep if you want to track plots, ignore if generated) ---
+# results/*.png
+# results/*.vcd
