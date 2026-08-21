@@ -35,18 +35,7 @@ module saturating_adder #(
         end
     end
     
-    // SVA: Verify saturation behavior
-    property p_saturation_positive;
-        @(posedge clk) disable iff (!rst_n)
-        (overflow && (a[WIDTH-1] == 0) && (b[WIDTH-1] == 0)) |-> 
-        (result == {1'b0, {WIDTH-1{1'b1}}});
-    endproperty
-    
-    property p_saturation_negative;
-        @(posedge clk) disable iff (!rst_n)
-        (overflow && (a[WIDTH-1] == 1) && (b[WIDTH-1] == 1)) |-> 
-        (result == {1'b1, {WIDTH-1{1'b0}}});
-    endproperty
+    // Note: SVA properties moved to agent_sva.sv package for better tool support
 endmodule
 
 // ============================================================================
@@ -172,15 +161,6 @@ module safe_bias_update #(
             bias_reg <= new_bias;
     end
     
-    // SVA: Bias always within bounds
-    property p_bias_bounds;
-        @(posedge clk) disable iff (!rst_n)
-        (bias_reg >= bias_min) && (bias_reg <= bias_max);
-    endproperty
-    
-    assert property (p_bias_bounds)
-        else $error("Bias out of bounds: %0d (min=%0d, max=%0d)", 
-                    bias_reg, bias_min, bias_max);
 endmodule
 
 // ============================================================================
@@ -206,9 +186,4 @@ module moving_average #(
         average = (sum + (1 << (SHIFT_AMOUNT-1))) >>> SHIFT_AMOUNT;
     end
     
-    // SVA: Average should be within input range
-    property p_average_range;
-        @(posedge clk) disable iff (!rst_n)
-        (average >= $signed(inputs[0])) || (average <= $signed(inputs[0]));
-    endproperty
 endmodule

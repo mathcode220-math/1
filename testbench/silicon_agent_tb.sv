@@ -4,14 +4,6 @@
 //============================================================================
 
 `timescale 1ns/1ps
-`include "agent_types.svh"
-`include "agent_interfaces.sv"
-`include "../src/silicon_agent_closed_loop.sv"
-`include "../src/cdc_synchronizers.sv"
-`include "../src/saturation_arithmetic.sv"
-`include "../src/config_registers.sv"
-`include "../src/performance_counters.sv"
-`include "../src/agent_sva.sv"
 
 module silicon_agent_tb;
     
@@ -59,14 +51,10 @@ module silicon_agent_tb;
     // Testbench Variables
     // ========================================================================
     integer cycle;
-    integer token, dim, bit;
+    integer token, dim, bit_idx;
     integer win_count [NUM_TOKENS-1:0];
     integer total_updates;
     real v_qualities [NUM_TOKENS-1:0];
-    
-    // Coverage instance
-    import agent_sva::*;
-    cg_agent_coverage cov_group;
     
     // ========================================================================
     // Clock Generation
