@@ -234,5 +234,55 @@ silicon-agent/
 
 ---
 
-**License:** MIT  
-**Author:** Silicon Agent Architecture Team
+## Badges
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![CI/CD Pipeline](https://github.com/silicon-agent/silicon-agent/actions/workflows/ci.yml/badge.svg)](.github/workflows/ci.yml)
+[![Formal Verification](https://img.shields.io/badge/Verification-Formal-blue.svg)](docs/FORMAL_VERIFICATION.md)
+[![PyTorch Integration](https://img.shields.io/badge/Integration-PyTorch-red.svg)](scripts/pytorch_bridge/README.md)
+
+---
+
+## Quick Links
+
+- [📚 Documentation](docs/) - Simulation guide, theory, and improvements
+- [🔬 Formal Verification](docs/FORMAL_VERIFICATION.md) - SVA assertions and formal proofs
+- [🧠 PyTorch Bridge](scripts/pytorch_bridge/README.md) - Use as custom layer in neural networks
+- [⚙️ FPGA Constraints](constraints/) - Xilinx and Synopsys constraint files
+- [📊 Results](results/) - Convergence plots and architecture diagrams
+
+---
+
+## Contributing
+
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+
+### Areas for Contribution
+
+1. **PyTorch/TensorFlow Integration** - Improve the co-simulation bridge
+2. **Formal Verification** - Add more SVA properties and formal proofs
+3. **FPGA Implementation** - Test on real hardware and report results
+4. **Performance Optimization** - Improve timing, area, or power efficiency
+5. **Documentation** - Add tutorials, examples, or API documentation
+
+---
+
+## Citation
+
+If you use Silicon Agent in your research, please cite:
+
+```bibtex
+@misc{silicon_agent_2024,
+  title={Silicon Agent: Closed-Loop Neuromorphic Attention System},
+  author={Silicon Agent Contributors},
+  year={2024},
+  publisher={GitHub},
+  url={https://github.com/silicon-agent/silicon-agent}
+}
+```
+
+---
+
+**License:** MIT - See [LICENSE](LICENSE) file for details  
+**Author:** Silicon Agent Architecture Team  
+**Version:** 1.0.0

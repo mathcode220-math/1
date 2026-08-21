@@ -1,0 +1,110 @@
+# SymbiYosys Configuration for Silicon Agent Formal Verification
+
+[tasks]
+prove_bias_bounds
+prove_one_hot
+prove_cdc_handshake
+prove_fsm_valid
+cover_all_states
+cover_boundary_conditions
+
+[options]
+prove_bias_bounds
+mode prove
+depth 100
+timeout 600
+assertions p_bias_bounds
+
+prove_one_hot
+mode prove
+depth 50
+timeout 300
+assertions p_one_hot_winner
+
+prove_cdc_handshake
+mode prove
+depth 200
+timeout 900
+assertions p_cdc_handshake_complete
+
+prove_fsm_valid
+mode prove
+depth 150
+timeout 600
+assertions p_fsm_state_valid
+
+cover_all_states
+mode cover
+depth 150
+timeout 600
+
+cover_boundary_conditions
+mode cover
+depth 100
+timeout 400
+
+[engines]
+smtbmc yosys-smtbmc
+
+[script]
+read_verilog -sv src/agent_types.svh
+read_verilog -sv src/agent_interfaces.sv
+read_verilog -sv src/cdc_synchronizers.sv
+read_verilog -sv src/saturation_arithmetic.sv
+read_verilog -sv src/config_registers.sv
+read_verilog -sv src/performance_counters.sv
+read_verilog -sv src/agent_sva.sv
+read_verilog -sv src/silicon_agent_closed_loop.sv
+prep -top silicon_agent_top
+
+[file rules]
+src/*.sv
+src/*.svh
+
+[assume]
+# Initial reset assumption
+assume (!rst_n) @ 0
+assume (rst_n) @ 1
+
+# Clock assumptions
+assume (posedge clk_fast) @ 1
+assume (posedge clk_slow) @ 1
+
+# Parameter bounds
+assume (NUM_TOKENS > 0)
+assume (NUM_TOKENS <= 16)
+assume (BIAS_WIDTH > 8)
+assume (BIAS_WIDTH <= 32)
+
+[assert]
+# Import assertions from agent_sva.sv
+# These are defined in the agent_sva module
+
+[cover]
+# FSM state coverage
+cover (@(posedge clk_slow) current_state == ST_IDLE);
+cover (@(posedge clk_slow) current_state == ST_SAMPLE);
+cover (@(posedge clk_slow) current_state == ST_COMPUTE_Q);
+cover (@(posedge clk_slow) current_state == ST_UPDATE);
+cover (@(posedge clk_slow) current_state == ST_CONVERGED);
+
+# Boundary coverage for bias
+cover (@(posedge clk_slow) bias[0] == BIAS_MIN);
+cover (@(posedge clk_slow) bias[0] == BIAS_MAX);
+cover (@(posedge clk_slow) bias[$clog2(NUM_TOKENS)-1] == BIAS_MIN);
+cover (@(posedge clk_slow) bias[$clog2(NUM_TOKENS)-1] == BIAS_MAX);
+
+# Reward boundary coverage
+cover (@(posedge clk_slow) reward == 8'h00);
+cover (@(posedge clk_slow) reward == 8'h40);
+cover (@(posedge clk_slow) reward == 8'hC0);
+cover (@(posedge clk_slow) reward == 8'hFF);
+
+# Winner selection coverage
+cover (@(posedge clk_fast) winner_valid && (winner_id == 0));
+cover (@(posedge clk_fast) winner_valid && (winner_id == NUM_TOKENS-1));
+
+# Learning activity coverage
+cover (@(posedge clk_slow) learning_active == 1'b1);
+cover (@(posedge clk_slow) learning_active == 1'b0);
+cover (@(posedge clk_slow) convergence_detected == 1'b1);
