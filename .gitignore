@@ -5,46 +5,43 @@
 *.bin
 *.hex
 *.out
-build/
-dist/
+
+# Simulation and synthesis outputs
+*.vcd
+*.fst
+*.vpd
+*.fsdb
+*.shm
+DVEfiles/
+work/
+ipcore_dir/
 
 # Dependencies
 node_modules/
 venv/
 .venv/
-__pycache__/
-*.egg-info/
-
-# Logs and temp files
-*.log
-*.tmp
-*.swp
-
-# Editors
-.vscode/
-.idea/
-
-# Coverage
-coverage/
-htmlcov/
-.coverage
-
-# Environment
 .env
 .env.local
 *.env.*
 
-# OS
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+
+# OS specific
 .DS_Store
 Thumbs.db
 
-# Compressed files
-*.zip
-*.gz
-*.tar
-*.tgz
-*.bz2
-*.xz
-*.7z
-*.rar
+# Coverage and testing
+coverage/
+htmlcov/
+*.gcda
+*.gcno
 ```
