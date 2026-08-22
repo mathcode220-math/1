@@ -37,8 +37,8 @@ interface agent_if #(
     logic [$clog2(NUM_TOKENS)-1:0] learn_write_addr;
     logic signed [DATA_WIDTH-1:0]  learn_write_data;
     
-    // Configuration interface
-    agent_config_t config;
+    // Configuration interface (renamed from 'config' to avoid keyword conflict)
+    agent_config_t cfg_reg;
     
     // Performance counters
     perf_counters_t perf;
@@ -54,7 +54,7 @@ interface agent_if #(
     
     // Modport for Q-Guided Agent
     modport q_agent (
-        input clk_slow, winner_id, winner_valid, reward, reward_valid, config,
+        input clk_slow, winner_id, winner_valid, reward, reward_valid, cfg_reg,
         output learn_write_en, learn_write_addr, learn_write_data, bias,
         output converged, perf
     );
@@ -68,7 +68,7 @@ interface agent_if #(
     // Modport for Testbench
     modport tb (
         output clk_fast, clk_slow, rst_n, evidence, evidence_valid,
-        output reward, reward_valid, config,
+        output reward, reward_valid, cfg_reg,
         input winner_id, winner_valid, one_hot_weights, bias,
         input converged, perf
     );

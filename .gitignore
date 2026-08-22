@@ -1,16 +1,25 @@
 ```
 # Build artifacts
-build/
-dist/
+*.o
+*.obj
+*.bin
+*.hex
+*.out
+
+# Simulation and synthesis outputs
+*.vcd
+*.fst
+*.vpd
+*.fsdb
+*.shm
+DVEfiles/
+work/
+ipcore_dir/
 
 # Dependencies
 node_modules/
-
-# Logs and temp files
-*.log
-*.tmp
-
-# Environment
+venv/
+.venv/
 .env
 .env.local
 *.env.*
@@ -18,50 +27,21 @@ node_modules/
 # Editors
 .vscode/
 .idea/
+*.swp
+*.swo
 
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
 
-# Compression artifacts
-*.zip
-*.gz
-*.tar
-*.tgz
-*.bz2
-*.xz
-*.7z
-*.rar
-*.zst
-*.lz4
-*.lzh
-*.cab
-*.arj
-*.rpm
-*.deb
-*.Z
-*.lz
-*.lzo
-*.tar.gz
-*.tar.bz2
-*.tar.xz
-*.tar.zst
-
-# Coverage
-coverage/
-htmlcov/
-.coverage
-
-# Testing
-.mypy_cache/
-.pytest_cache/
-
-# System
+# OS specific
 .DS_Store
 Thumbs.db
 
-# Original rules preserved
-*.log
+# Coverage and testing
+coverage/
+htmlcov/
+*.gcda
+*.gcno
 ```

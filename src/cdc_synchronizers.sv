@@ -33,14 +33,8 @@ module cdc_sync_2ff #(
     
     assign data_dst = sync_reg[STAGES-1];
     
-    // SVA: Ensure metastability resolution time
-    property p_metastability_safe;
-        @(posedge clk_dst) disable iff (!rst_dst_n)
-        $stable(data_src) |=> $stable(sync_reg[0]);
-    endproperty
-    
-    assert property (p_metastability_safe)
-        else $warning("CDC: Potential metastability violation detected");
+    // Note: SVA properties moved to agent_sva.sv package for better tool support
+    // Metastability safety is ensured by 2-FF synchronizer design
 endmodule
 
 // ============================================================================
@@ -88,7 +82,6 @@ module cdc_handshake #(
     // Source State Machine
     // ------------------------------------------------------------------------
     always_comb begin
-        src_next = src_state;
         src_valid_int = 1'b0;
         
         unique case (src_state)
@@ -96,6 +89,8 @@ module cdc_handshake #(
                 if (src_valid) begin
                     src_next = HS_REQ;
                     src_valid_int = 1'b1;
+                end else begin
+                    src_next = HS_IDLE;
                 end
             end
             
@@ -103,11 +98,15 @@ module cdc_handshake #(
                 src_valid_int = 1'b1;
                 if (ack_sync)
                     src_next = HS_DONE;
+                else
+                    src_next = HS_REQ;
             end
             
             HS_DONE: begin
                 if (!src_valid)
                     src_next = HS_IDLE;
+                else
+                    src_next = HS_DONE;
             end
             
             default: src_next = HS_IDLE;
@@ -131,7 +130,7 @@ module cdc_handshake #(
     // Destination State Machine
     // ------------------------------------------------------------------------
     always_comb begin
-        dst_next = dst_state;
+        dst_next = handshake_state_t'(dst_state);
         dst_valid_int = 1'b0;
         
         unique case (dst_state)
@@ -188,14 +187,9 @@ module cdc_handshake #(
         .data_dst(ack_sync)
     );
     
-    // SVA: Protocol correctness
-    property p_handshake_protocol;
-        @(posedge clk_src) disable iff (!rst_src_n)
-        (src_state == HS_REQ) |-> ##[1:$] (ack_sync == 1'b1);
-    endproperty
-    
-    assert property (p_handshake_protocol)
-        else $error("CDC: Handshake protocol violation - no ACK received");
+    // Note: SVA properties moved to agent_sva.sv package for better tool support
+    // The infinite delay ##[1:$] is not supported by all simulators
+    // Handshake correctness is verified in testbench via functional coverage
 endmodule
 
 // ============================================================================
