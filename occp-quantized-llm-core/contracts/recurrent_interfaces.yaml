@@ -1,0 +1,92 @@
+# ============================================================
+# recurrent_interfaces.yaml
+# العقد البيني لكل وحدات الحلقة العودية
+# ============================================================
+modules:
+
+  layer_loopback_mux:
+    type: combinational
+    parameters:
+      DATA_WIDTH: {default: 16}
+      VECTOR_LEN: {default: 512}
+    ports:
+      inputs:
+        sel_external: {width: 1, source: fsm}
+        ext_data:     {width: "DATA_WIDTH*VECTOR_LEN", source: axi}
+        ext_valid:    {width: 1, source: axi}
+        loop_data:    {width: "DATA_WIDTH*VECTOR_LEN", source: loopback_reg}
+        loop_valid:   {width: 1, source: loopback_reg}
+      outputs:
+        mux_data:     {width: "DATA_WIDTH*VECTOR_LEN", dest: layer_processor}
+        mux_valid:    {width: 1, dest: layer_processor}
+
+  loopback_register:
+    type: sequential
+    parameters:
+      DATA_WIDTH: {default: 16}
+      VECTOR_LEN: {default: 512}
+    ports:
+      inputs:
+        clk:          {width: 1}
+        rst_n:        {width: 1, polarity: active_low}
+        en:           {width: 1, source: fsm}
+        data_in:      {width: "DATA_WIDTH*VECTOR_LEN"}
+        valid_in:     {width: 1}
+      outputs:
+        data_out:     {width: "DATA_WIDTH*VECTOR_LEN"}
+        valid_out:    {width: 1}
+
+  weight_pingpong:
+    type: sequential
+    parameters:
+      DATA_WIDTH:   {default: 16}
+      WEIGHT_DEPTH: {default: 4096}
+    ports:
+      inputs:
+        clk:          {width: 1}
+        rst_n:        {width: 1}
+        buf_sel:      {width: 1, source: fsm}
+        load_en:      {width: 1, source: dma}
+        load_data:    {width: "DATA_WIDTH"}
+        load_addr:    {width: "$clog2(WEIGHT_DEPTH)"}
+        read_addr:    {width: "$clog2(WEIGHT_DEPTH)"}
+      outputs:
+        weight_out:   {width: "DATA_WIDTH"}
+
+  sa_done_generator:
+    type: sequential
+    parameters:
+      LATENCY_WIDTH: {default: 8}
+      DEFAULT_LATENCY: {default: 11}
+    ports:
+      inputs:
+        clk:         {width: 1}
+        rst_n:       {width: 1}
+        start:       {width: 1, source: fsm}
+        latency_cfg: {width: "LATENCY_WIDTH", description: "تأخير قابل للبرمجة بالنبضات"}
+      outputs:
+        done:        {width: 1, dest: fsm, timing: "done بعد LATENCY نبضة من rising edge الـ start المسجَّل"}
+
+  occp_pipeline_fsm:
+    type: sequential
+    parameters:
+      MAX_LAYERS: {default: 128}
+    ports:
+      inputs:
+        clk:                {width: 1}
+        rst_n:              {width: 1}
+        host_start:         {width: 1}
+        metadata_valid:     {width: 1}
+        layer_done:         {width: 1}
+        softmax_done:       {width: 1}
+        weight_ready:       {width: 1}
+      outputs:
+        sel_external:       {width: 1}
+        capture_loop:       {width: 1}
+        start_layer:        {width: 1}
+        buf_sel:            {width: 1}
+        weight_load_en:     {width: 1}
+        weight_layer_idx:   {width: 8}
+        output_token_valid: {width: 1}
+        pipeline_busy:      {width: 1}
+        layer_counter_out:  {width: 8}

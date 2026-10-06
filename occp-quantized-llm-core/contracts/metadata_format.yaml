@@ -1,0 +1,50 @@
+# ============================================================
+# metadata_format.yaml
+# مواصفات رأس ملف .bin للنموذج المكمم
+# ============================================================
+metadata_format:
+  version: 1
+  byte_order: little_endian
+  header_size_bytes: 8
+  alignment: "8 bytes = 1 AXI4-Lite word"
+
+  fields:
+    - name: total_layers
+      offset: 0
+      size: 1
+      type: uint8
+      range: [1, 128]
+      description: "عدد الطبقات الكلي في النموذج"
+
+    - name: layer_weight_bytes
+      offset: 1
+      size: 3
+      type: uint24
+      description: "حجم أوزان الطبقة الواحدة بالبايت"
+
+    - name: activation_kind
+      offset: 4
+      size: 1
+      type: uint8
+      enum:
+        relu: 0
+        gelu: 1
+        silu: 2
+        tanh: 3
+        softmax: 4
+
+    - name: vector_len
+      offset: 5
+      size: 2
+      type: uint16
+      description: "بُعد متجه الإدخال"
+
+    - name: reserved
+      offset: 7
+      size: 1
+      type: uint8
+      description: "بايت محجوز (صفر) — لمحاذاة الرأس إلى 8 بايت"
+
+  payload:
+    layout: "layer_0_weights || layer_1_weights || ... || layer_N_weights"
+    encoding: "row-major int8"
