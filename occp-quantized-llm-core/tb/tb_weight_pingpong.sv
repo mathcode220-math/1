@@ -5,14 +5,15 @@ module tb_weight_pingpong;
     localparam int DATA_WIDTH   = 8;
     localparam int WEIGHT_DEPTH = 16;
 
-    logic                                clk = 0;
-    logic                                rst_n;
-    logic                                buf_sel;
-    logic                                load_en;
-    logic [DATA_WIDTH-1:0]               load_data;
-    logic [$clog2(WEIGHT_DEPTH)-1:0]     load_addr;
-    logic [$clog2(WEIGHT_DEPTH)-1:0]     read_addr;
-    wire  logic [DATA_WIDTH-1:0]         weight_out;
+    logic                            clk = 0;
+    logic                            rst_n;
+    logic                            buf_sel;
+    logic                            load_en;
+    logic [DATA_WIDTH-1:0]           load_data;
+    logic [$clog2(WEIGHT_DEPTH)-1:0] dma_addr;
+    logic [$clog2(WEIGHT_DEPTH)-1:0] read_addr;
+    logic [DATA_WIDTH-1:0]           weight_out;
+    logic                            load_done;
 
     always #5 clk = ~clk;
 
@@ -24,62 +25,82 @@ module tb_weight_pingpong;
     int error_count = 0;
 
     initial begin
-        #1;
+        #5000;
+        $error("FAIL: watchdog timeout");
+        $finish;
+    end
+
+    initial begin
         rst_n = 0;
         buf_sel = 0;
         load_en = 0;
         load_data = 0;
-        load_addr = 0;
         read_addr = 0;
-        #11 rst_n = 1;
+        #12 rst_n = 1;
 
-        // اختبار 1: شحن البنك المعاكس ثم القراءة منه
-        // buf_sel=0 => القراءة من A، الكتابة في B
+        // ---- اختبار 1: شحن البنك B عبر DMA (نقرأ من A => نكتب في B) ----
         buf_sel = 0;
-        for (int i = 0; i < WEIGHT_DEPTH; i++) begin
-            @(negedge clk);
-            load_en   = 1;
-            load_addr = i[$clog2(WEIGHT_DEPTH)-1:0];
-            load_data = 8'hA0 + i[7:0];
-        end
-        @(negedge clk); load_en = 0;
+        @(negedge clk);
+        load_en = 1;
+        // نتابع dma_addr ونغذّي البيانات المطابقة له
+        fork
+            begin
+                for (int i = 0; i < WEIGHT_DEPTH; i++) begin
+                    while (dma_addr != i[$clog2(WEIGHT_DEPTH)-1:0]) @(negedge clk);
+                    load_data = 8'hA0 + i[7:0];
+                    @(negedge clk);
+                end
+                load_en = 0;
+            end
+        join
 
-        // الآن B تحتوي على البيانات، نقرأ منها بتبديل buf_sel
+        wait (load_done === 1'b1);
+        @(negedge clk);
+        $display("OK: load_done pulse after full DMA round");
+
+        // قراءة B بعد التبديل
         buf_sel = 1;
         for (int i = 0; i < WEIGHT_DEPTH; i++) begin
             read_addr = i[$clog2(WEIGHT_DEPTH)-1:0];
             #1;
             if (weight_out !== (8'hA0 + i[7:0])) begin
-                $error("read failed at [%0d]: %h, expected %h",
+                $error("read fail at [%0d]: got %h expected %h",
                        i, weight_out, 8'hA0 + i[7:0]);
                 error_count++;
             end
         end
 
-        // اختبار 2: كتابة متزامنة أثناء القراءة (Ping-Pong حقيقي)
-        // ملاحظة: الكتابة تتم على البنك المعاكس لـ buf_sel، لذا
-        // مع buf_sel=1 (القراءة من B) تُكتب البيانات في A.
-        // نُبقي buf_sel=1 أثناء النبضة ثم نقرأ من A بعد التبديل.
+        // ---- اختبار 2: Ping-Pong — نقرأ من A، ندمر B[5]=FE أثناء العد ----
+        buf_sel = 0;                 // نقرأ من A، نكتب في B
         @(negedge clk);
         load_en   = 1;
-        load_addr = 4'h5;
-        load_data = 8'hEE;
-        @(posedge clk); #1;              // الكتابة تمت عند هذه الحافة (إلى A)
+        load_data = 8'h00;           // قيم غير مهمة قبل العنوان المستهدف
+        // انتظر أن يصل عدّاد DMA إلى 5 ثم اكتب القيمة المميزة
+        while (dma_addr != 4'd5) @(negedge clk);
+        load_data = 8'hFE;
+        @(negedge clk);              // الكتابة تتم على الحافة: B[5] <= FE
         load_en = 0;
-        // A[5] يجب أن يكون EE الآن
-        buf_sel   = 0;
-        read_addr = 4'h5;
+        buf_sel = 1;
+        read_addr = 4'd5;
         #1;
-        if (weight_out !== 8'hEE) begin
-            $error("ping-pong failed: A[5] = %h, expected EE", weight_out);
+        if (weight_out !== 8'hFE) begin
+            $error("Ping-Pong fail: B[5]=%h expected FE", weight_out);
+            error_count++;
+        end
+
+        // ---- اختبار 3: bank A لم تُمس — قراءتها صفر ----
+        buf_sel = 0;
+        read_addr = 4'd0;
+        #1;
+        if (weight_out !== 8'h00) begin
+            $error("Bank A should be untouched, got %h", weight_out);
             error_count++;
         end
 
         if (error_count == 0)
             $display("PASS: tb_weight_pingpong - all tests passed");
         else
-            $error("FAIL: tb_weight_pingpong - %0d errors", error_count);
-
+            $error("FAIL: tb_weight_pingpong: %0d errors", error_count);
         $finish;
     end
 

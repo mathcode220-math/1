@@ -1,6 +1,9 @@
 // ============================================================
 // layer_loopback_mux.sv
-// بوابة إعادة التدوير: تختار بين مدخلات خارجية ومخرجات الحلقة
+// بوابة إعادة التدوير: تختار بين مدخلات خارجية ومخرجات الحلقة.
+// ملاحظة تنفيذية: النسخ يتم عنصرًا بعنصر عبر مصفوفة وسيطة
+// لتجنب مشاركة مراجع المصفوفات في بعض المحاكيات (Icarus Verilog)
+// التي قد تُنشئ حلقة محاكاة عند نسخ المصفوفات بالكامل.
 // ============================================================
 `timescale 1ns/1ps
 
@@ -17,15 +20,20 @@ module layer_loopback_mux #(
     output logic                         mux_valid
 );
 
-    // ملاحظة توافق (Icarus Verilog 11): النسخ العنصر-بعنصر عبر
-    // always_comb مع حلقة لا يُشغَّل بشكل موثوق عند تغيّر عناصر
-    // مصفوفات unpacked؛ لذلك نستخدم continuous assignments لكل عنصر.
-    generate
-        for (genvar gi = 0; gi < VECTOR_LEN; gi++) begin : g_mux
-            assign mux_data[gi] = sel_external ? ext_data[gi] : loop_data[gi];
-        end
-    endgenerate
+    logic [DATA_WIDTH-1:0] tmp [0:VECTOR_LEN-1];
 
-    assign mux_valid = sel_external ? ext_valid : loop_valid;
+    always_comb begin
+        if (sel_external) begin
+            for (int i = 0; i < VECTOR_LEN; i++) tmp[i] = ext_data[i];
+            mux_valid = ext_valid;
+        end else begin
+            for (int i = 0; i < VECTOR_LEN; i++) tmp[i] = loop_data[i];
+            mux_valid = loop_valid;
+        end
+    end
+
+    always_comb begin
+        for (int i = 0; i < VECTOR_LEN; i++) mux_data[i] = tmp[i];
+    end
 
 endmodule

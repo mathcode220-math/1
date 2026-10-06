@@ -25,6 +25,31 @@ module tb_recurrent_datapath;
 
     int error_count = 0;
 
+    // Watchdog: يفشل الاختبار بدل التعليق اللانهائي
+    initial begin
+        #5000;
+        $error("FAIL: watchdog timeout");
+        $finish;
+    end
+
+    // طبقة كاملة: نبضة Start ثم انتظار done ثم حافة التسوية + قراءة
+    task automatic run_layer(input logic use_external, input logic capture);
+        @(negedge clk);
+        sel_external = use_external;
+        capture_loop = capture;
+        start_layer  = 1'b1;
+        @(negedge clk);
+        start_layer  = 1'b0;
+        wait (layer_done === 1'b1);   // الطبقة على وشك إنهاء الحساب
+        @(posedge clk);               // حافة التسوية: layer_flat يستقر
+        // ملاحظة Icarus: تفريغ وسائط المصفوفات عبر منافذ النطاق
+        // يحدث بعد فترات #، لذا نقرأ الحقول في نفس لحظة الحافة
+        check_data = dut.final_data[0];
+        check_data3 = dut.final_data[3];
+    endtask
+
+    logic [DATA_WIDTH-1:0] check_data, check_data3;
+
     initial begin
         rst_n = 0;
         sel_external = 1;
@@ -35,44 +60,30 @@ module tb_recurrent_datapath;
 
         #12 rst_n = 1;
 
-        // نبضة إدخال
+        // الطبقة 0: من المسار الخارجي — تُلتقط في سجل الحلقة
         @(negedge clk);
         ext_data[0] = 8'h42; ext_data[1] = 8'h43;
         ext_data[2] = 8'h44; ext_data[3] = 8'h45;
         ext_valid = 1;
+        @(negedge clk);           // إتاحة الإدخال قبل نبضة Start
 
-        // دورة 1: الطبقة 0 (external)
-        @(negedge clk);
-        start_layer = 1;
-        @(negedge clk);
-        start_layer = 0;
-
-        // انتظار layer_done
-        wait (layer_done);
-        @(posedge clk); #1;
-        $display("T=%0t: layer 0 done, final_data[0]=%h", $time, final_data[0]);
-
-        // التقاط مخرج الطبقة الأولى في سجل الحلقة
-        @(negedge clk);
-        capture_loop = 1;
-        @(negedge clk); #1;
-
-        // دورة 2: الطبقة 1 (loopback)
-        @(negedge clk);
-        sel_external = 0;
-        start_layer = 1;
-        @(negedge clk);
-        start_layer = 0;
-
-        wait (layer_done);
-        @(posedge clk); #1;
-        $display("T=%0t: layer 1 done, final_data[0]=%h", $time, final_data[0]);
-
-        if (final_data[0] === 8'h42)
-            $display("PASS: loop works - data circulated through two layers");
-        else begin
-            $error("FAIL loop: final_data[0]=%h, expected 42", final_data[0]);
+        run_layer(1'b1, 1'b1);
+        $display("T=%0t: layer 0 done, data=%h", $time, check_data);
+        if (check_data !== 8'h42 || check_data3 !== 8'h45) begin
+            $error("layer 0: got %h/%h, expected 42/45", check_data, check_data3);
             error_count++;
+        end
+
+        // الطبقة 1: من مسار الحلقة (loop_valid مُلتقط من الطبقة 0)
+        run_layer(1'b0, 1'b0);
+        $display("T=%0t: layer 1 done, data=%h valid=%b",
+                 $time, check_data, final_valid);
+        if (check_data !== 8'h42 || final_valid !== 1'b1) begin
+            $error("layer 1 loopback: got %h valid=%b, expected 42/1",
+                   check_data, final_valid);
+            error_count++;
+        end else begin
+            $display("PASS: loop works - data circulated through two layers");
         end
 
         if (error_count == 0)

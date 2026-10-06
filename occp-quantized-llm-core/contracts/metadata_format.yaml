@@ -43,7 +43,7 @@ metadata_format:
       offset: 7
       size: 1
       type: uint8
-      description: "بايت محجوز (صفر) — لمحاذاة الرأس إلى 8 بايت"
+      description: "محجوز للمستقبل، يجب أن يكون صفراً"
 
   payload:
     layout: "layer_0_weights || layer_1_weights || ... || layer_N_weights"
