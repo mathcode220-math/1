@@ -31,7 +31,7 @@ module tb_loopback_register;
 
         #11 rst_n = 1;
 
-        // اختبار 1: التقاط البيانات
+        // Test 1: data capture
         @(negedge clk);
         data_in[0] = 8'h10; data_in[1] = 8'h20; data_in[2] = 8'h30; data_in[3] = 8'h40;
         valid_in = 1'b1;
@@ -43,7 +43,7 @@ module tb_loopback_register;
             error_count++;
         end
 
-        // اختبار 2: en=0 -> البيانات تبقى ثابتة
+        // Test 2: en=0 -> data stays frozen
         @(negedge clk);
         data_in[0] = 8'hFF;
         valid_in = 1'b0;
@@ -54,7 +54,7 @@ module tb_loopback_register;
             error_count++;
         end
 
-        // اختبار 3: reset
+        // Test 3: reset
         @(negedge clk); rst_n = 0;
         @(posedge clk); #1;
         if (data_out[0] !== 8'h00 || valid_out !== 1'b0) begin

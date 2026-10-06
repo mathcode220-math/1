@@ -1,7 +1,7 @@
 // ============================================================
 // fsm_state_pkg.sv
-// حالات آلة خط المعالجة — معرّفة كحزمة منفصلة لضمان توافق
-// المحاكيات، ومطابقة للعقد في contracts/recurrent_interfaces.yaml
+// Canonical FSM state encodings shared between RTL and testbenches.
+// Values match occp_pipeline_fsm.sv and contracts/recurrent_interfaces.yaml.
 // ============================================================
 `ifndef FSM_STATE_PKG_SV
 `define FSM_STATE_PKG_SV
@@ -10,15 +10,15 @@
 
 package fsm_state_pkg;
 
-    localparam logic [3:0] S_IDLE          = 4'b0000;
-    localparam logic [3:0] S_LOAD_META     = 4'b0001;
-    localparam logic [3:0] S_PREFETCH_W    = 4'b0010;
-    localparam logic [3:0] S_LOAD_LAYER_0  = 4'b0011;
-    localparam logic [3:0] S_COMPUTE       = 4'b0100;
-    localparam logic [3:0] S_WAIT_DONE     = 4'b0101;
-    localparam logic [3:0] S_LOOP_CHECK    = 4'b0110;
-    localparam logic [3:0] S_OUTPUT_TOKEN  = 4'b0111;
-    localparam logic [3:0] S_ERROR         = 4'b1000;
+    localparam logic [3:0] S_IDLE          = 4'd0;
+    localparam logic [3:0] S_LOAD_META     = 4'd1;
+    localparam logic [3:0] S_PREFETCH_W    = 4'd2;
+    localparam logic [3:0] S_LOAD_LAYER_0  = 4'd3;
+    localparam logic [3:0] S_COMPUTE       = 4'd4;
+    localparam logic [3:0] S_WAIT_DONE     = 4'd5;
+    localparam logic [3:0] S_LOOP_CHECK    = 4'd6;
+    localparam logic [3:0] S_OUTPUT_TOKEN  = 4'd7;
+    localparam logic [3:0] S_ERROR         = 4'd8;
 
 endpackage : fsm_state_pkg
 

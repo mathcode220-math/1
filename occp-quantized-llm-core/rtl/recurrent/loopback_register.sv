@@ -1,6 +1,7 @@
 // ============================================================
 // loopback_register.sv
-// سجل مُفعَّل يكسر المسار التوافقي في الحلقة
+// Enabled register that breaks the combinational path inside the
+// recurrent loop. Data is captured only when en is asserted.
 // ============================================================
 `timescale 1ns/1ps
 
@@ -17,30 +18,14 @@ module loopback_register #(
     output logic                    valid_out
 );
 
-    // مسطّحة (flat) لضمان تحديث متزامن ومتوافق مع جميع المحاكيات
-    localparam int FLAT_W = DATA_WIDTH * VECTOR_LEN;
-
-    logic [FLAT_W-1:0] din_flat;
-    logic [FLAT_W-1:0] dout_flat;
-
-    always @(*) begin
-        for (int i = 0; i < VECTOR_LEN; i++)
-            din_flat[i*DATA_WIDTH +: DATA_WIDTH] = data_in[i];
-    end
-
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             valid_out <= 1'b0;
-            dout_flat <= '0;
+            for (int i = 0; i < VECTOR_LEN; i++) data_out[i] <= '0;
         end else if (en) begin
             valid_out <= valid_in;
-            dout_flat <= din_flat;
+            for (int i = 0; i < VECTOR_LEN; i++) data_out[i] <= data_in[i];
         end
-    end
-
-    always @(*) begin
-        for (int i = 0; i < VECTOR_LEN; i++)
-            data_out[i] = dout_flat[i*DATA_WIDTH +: DATA_WIDTH];
     end
 
 endmodule

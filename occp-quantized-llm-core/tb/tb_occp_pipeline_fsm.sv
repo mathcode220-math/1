@@ -1,13 +1,13 @@
 `timescale 1ns/1ps
 
 // ============================================================
-// Testbench لوحدة occp_pipeline_fsm — النسخة المُصلَحة (E-6)
-// القواعد:
-//   * بعد كل فحص حالة يجب الانتظار حافة كاملة قبل الفحص التالي.
-//   * لا يوجد انتقال فوري LOOP_CHECK -> OUTPUT_TOKEN في نفس الحافة؛
-//     بينهما حافة واحدة على الأقل.
-//   * S_LOAD_LAYER_0 حالة حية الآن في المسار (E-2).
-//   * WAIT_DONE يشترط layer_done && softmax_done معاً (E-3).
+// Testbench for occp_pipeline_fsm — fixed version (E-6)
+// Rules:
+//   * After every state check, wait a full clock edge before the next check.
+//   * There is no same-edge LOOP_CHECK -> OUTPUT_TOKEN transition;
+//     at least one clock edge separates the two states.
+//   * S_LOAD_LAYER_0 is now a live state on the mandatory path (E-2).
+//   * WAIT_DONE requires layer_done && softmax_done together (E-3).
 // ============================================================
 module tb_occp_pipeline_fsm;
 
@@ -53,7 +53,7 @@ module tb_occp_pipeline_fsm;
     int error_count = 0;
     int token_pulses_seen = 0;
 
-    // مراقب نبضات التوكن (يجب أن تكون دورة واحدة بالضبط لكل توكن)
+    // Token-pulse monitor (must be exactly one cycle per token)
     always @(posedge clk) begin
         if (output_token_valid === 1'b1) token_pulses_seen++;
     end
@@ -78,25 +78,25 @@ module tb_occp_pipeline_fsm;
         end
     endtask
 
-    // التقدم بحافة كاملة واحدة
+    // Advance by exactly one full clock edge
     task automatic step();
         @(negedge clk);
         @(posedge clk); #1;
     endtask
 
     // ----------------------------------------------------------
-    // طبقة كاملة: من PREFETCH_W حتى WAIT_DONE التالي
-    // L = رقم الطبقة (0-based) الجارية
+    // One full layer: from PREFETCH_W up to the next WAIT_DONE
+    // L = current layer index (0-based)
     // ----------------------------------------------------------
     task automatic run_full_layer(int L, int last);
-        // PREFETCH_W: weight_load_en مرتفع وفهرس الشحن = L+1 (1-based)
+        // PREFETCH_W: weight_load_en high, load index = L+1 (1-based)
         expect_state($sformatf("L%0d prefetch", L), S_PREFETCH_W);
         if (weight_load_en !== 1'b1) begin
             $error("L%0d: weight_load_en not high in PREFETCH_W", L);
             error_count++;
         end
         expect_eq8($sformatf("L%0d load idx", L), weight_layer_idx, L[7:0] + 8'd1);
-        step();  // -> LOAD_LAYER_0 (E-2: حالة حية)
+        step();  // -> LOAD_LAYER_0 (E-2: live state)
 
         expect_state($sformatf("L%0d load-layer-0", L), S_LOAD_LAYER_0);
         if (L == 0) begin
@@ -139,13 +139,13 @@ module tb_occp_pipeline_fsm;
             error_count++;
         end
 
-        // نغادر WAIT_DONE عند الحافة التالية — لا شيء يُفعّل هنا.
+        // We leave WAIT_DONE on the next edge — nothing is asserted here.
     endtask
 
-    // إتمام طبقة من WAIT_DONE الحالي: فحص E-3 ثم الإكمال إلى PREFETCH_W
-    // (أو OUTPUT_TOKEN إذا كانت last). تنتهي المهمة بعد حافة المغادرة.
+    // Finish a layer from the current WAIT_DONE: check E-3, then advance to PREFETCH_W
+    // (or OUTPUT_TOKEN if this was the last layer). The task ends after the exit edge.
     task automatic finish_layer(int L, int last);
-        // E-3: layer_done وحده لا يكفي — تبقى الآلة في WAIT_DONE
+        // E-3: layer_done alone is not enough — the machine must stay in WAIT_DONE
         @(negedge clk);
         layer_done = 1'b1; softmax_done = 1'b0;
         @(posedge clk); #1;
@@ -153,15 +153,15 @@ module tb_occp_pipeline_fsm;
         expect_eq8($sformatf("L%0d counter not advanced w/o softmax", L),
                    layer_counter_out, L[7:0]);
 
-        // الاثنتان معاً -> الحافة التالية تغادر WAIT_DONE (العدّاد يتقدم E-1)
+        // Both strobes -> the next edge leaves WAIT_DONE (counter advances, E-1)
         @(negedge clk);
-        softmax_done = 1'b1;   // layer_done ما زال مرتفعاً
+        softmax_done = 1'b1;   // layer_done is still high
         @(posedge clk); #1;
         layer_done = 1'b0; softmax_done = 1'b0;
         expect_state($sformatf("L%0d loop-check", L), S_LOOP_CHECK);
         expect_eq8($sformatf("L%0d counter after done", L),
                    layer_counter_out, L[7:0] + 8'd1);
-        // حافة المغادرة من LOOP_CHECK: غير الأخيرة -> PREFETCH_W، الأخيرة -> OUTPUT_TOKEN
+        // Exit edge of LOOP_CHECK: not-last -> PREFETCH_W, last -> OUTPUT_TOKEN
         step();
         if (!last)
             expect_state($sformatf("L%0d next prefetch", L), S_PREFETCH_W);
@@ -174,20 +174,20 @@ module tb_occp_pipeline_fsm;
         rst_n = 1;
         step();
 
-        // ---- T1: IDLE بعد إعادة الضبط ----
+        // ---- T1: IDLE after reset ----
         expect_state("T1", S_IDLE);
         if (pipeline_busy !== 1'b0) begin
             $error("T1: pipeline_busy should be low in IDLE");
             error_count++;
         end
 
-        // ---- T2: host_start بدون metadata -> يبقى IDLE ----
+        // ---- T2: host_start without metadata -> stays IDLE ----
         @(negedge clk); host_start = 1;
         @(posedge clk); #1;
         @(negedge clk); host_start = 0;
         expect_state("T2 no-metadata stays idle", S_IDLE);
 
-        // ---- T3: نفس حافة host_start+metadata_valid -> LOAD_META ----
+        // ---- T3: same-edge host_start+metadata_valid -> LOAD_META ----
         @(negedge clk);
         metadata_in = '0;
         metadata_in[7:0] = 8'd3;                 // total_layers = 3
@@ -200,16 +200,16 @@ module tb_occp_pipeline_fsm;
             $error("T3: total_layers_reg=%0d expected 3", dut.total_layers_reg);
             error_count++;
         end
-        step();                                   // LOAD_META -> PREFETCH_W دائماً
+        step();                                   // LOAD_META -> PREFETCH_W unconditionally
         expect_state("T3->PREFETCH", S_PREFETCH_W);
 
-        // ---- الطبقات الثلاث كاملة ----
+        // ---- Three complete layers ----
         weight_ready = 1;
         run_full_layer(0, 0);  finish_layer(0, 0);
         run_full_layer(1, 0);  finish_layer(1, 0);
         run_full_layer(2, 1);  finish_layer(2, 1);
 
-        // ---- نحن الآن داخل OUTPUT_TOKEN (E-6: حافة واحدة بعد LOOP_CHECK) ----
+        // ---- We are now inside OUTPUT_TOKEN (E-6: one edge after LOOP_CHECK) ----
         weight_ready = 0;
         expect_state("output-token", S_OUTPUT_TOKEN);
         if (layer_counter_out !== 8'd3) begin
@@ -220,7 +220,7 @@ module tb_occp_pipeline_fsm;
             $error("token pulse missing in first OUTPUT_TOKEN cycle");
             error_count++;
         end
-        step();  // token_pending=0 -> IDLE والنبضة انتهت
+        step();  // pulse done -> back to IDLE
         expect_state("idle after token", S_IDLE);
         if (output_token_valid !== 1'b0) begin
             $error("token pulse must be exactly one cycle");
@@ -235,7 +235,7 @@ module tb_occp_pipeline_fsm;
             error_count++;
         end
 
-        // ---- توكن ثانٍ بنموذج طبقة واحدة (الأولى = الأخيرة) ----
+        // ---- Second token with a one-layer model (first == last) ----
         @(negedge clk);
         metadata_in[7:0] = 8'd1;
         host_start = 1; metadata_valid = 1;

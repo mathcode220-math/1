@@ -25,14 +25,14 @@ module tb_recurrent_datapath;
 
     int error_count = 0;
 
-    // Watchdog: يفشل الاختبار بدل التعليق اللانهائي
+    // Watchdog: fail the test instead of hanging forever
     initial begin
         #5000;
         $error("FAIL: watchdog timeout");
         $finish;
     end
 
-    // طبقة كاملة: نبضة Start ثم انتظار done ثم حافة التسوية + قراءة
+    // One full layer: start pulse, wait for done, settle edge + readout
     task automatic run_layer(input logic use_external, input logic capture);
         @(negedge clk);
         sel_external = use_external;
@@ -40,10 +40,10 @@ module tb_recurrent_datapath;
         start_layer  = 1'b1;
         @(negedge clk);
         start_layer  = 1'b0;
-        wait (layer_done === 1'b1);   // الطبقة على وشك إنهاء الحساب
-        @(posedge clk);               // حافة التسوية: layer_flat يستقر
-        // ملاحظة Icarus: تفريغ وسائط المصفوفات عبر منافذ النطاق
-        // يحدث بعد فترات #، لذا نقرأ الحقول في نفس لحظة الحافة
+        wait (layer_done === 1'b1);   // layer is about to finish computing
+        @(posedge clk);               // settle edge: layer_flat stabilizes
+        // Icarus note: array-port draining across port ranges
+        // happens after # delays, so read fields at the edge instant
         check_data = dut.final_data[0];
         check_data3 = dut.final_data[3];
     endtask
@@ -60,12 +60,12 @@ module tb_recurrent_datapath;
 
         #12 rst_n = 1;
 
-        // الطبقة 0: من المسار الخارجي — تُلتقط في سجل الحلقة
+        // Layer 0: from the external path — captured into the loop register
         @(negedge clk);
         ext_data[0] = 8'h42; ext_data[1] = 8'h43;
         ext_data[2] = 8'h44; ext_data[3] = 8'h45;
         ext_valid = 1;
-        @(negedge clk);           // إتاحة الإدخال قبل نبضة Start
+        @(negedge clk);           // drive inputs before the start pulse
 
         run_layer(1'b1, 1'b1);
         $display("T=%0t: layer 0 done, data=%h", $time, check_data);
@@ -74,7 +74,7 @@ module tb_recurrent_datapath;
             error_count++;
         end
 
-        // الطبقة 1: من مسار الحلقة (loop_valid مُلتقط من الطبقة 0)
+        // Layer 1: from the loopback path (loop_valid captured from layer 0)
         run_layer(1'b0, 1'b0);
         $display("T=%0t: layer 1 done, data=%h valid=%b",
                  $time, check_data, final_valid);

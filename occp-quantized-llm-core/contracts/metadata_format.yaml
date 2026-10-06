@@ -1,6 +1,6 @@
 # ============================================================
 # metadata_format.yaml
-# مواصفات رأس ملف .bin للنموذج المكمم
+# .bin model-file header specification for the quantized model
 # ============================================================
 metadata_format:
   version: 1
@@ -14,13 +14,13 @@ metadata_format:
       size: 1
       type: uint8
       range: [1, 128]
-      description: "عدد الطبقات الكلي في النموذج"
+      description: "Total number of layers in the model"
 
     - name: layer_weight_bytes
       offset: 1
       size: 3
       type: uint24
-      description: "حجم أوزان الطبقة الواحدة بالبايت"
+      description: "Weight size of one layer, in bytes"
 
     - name: activation_kind
       offset: 4
@@ -37,13 +37,13 @@ metadata_format:
       offset: 5
       size: 2
       type: uint16
-      description: "بُعد متجه الإدخال"
+      description: "Input vector dimension"
 
     - name: reserved
       offset: 7
       size: 1
       type: uint8
-      description: "محجوز للمستقبل، يجب أن يكون صفراً"
+      description: "Reserved for future use, must be zero"
 
   payload:
     layout: "layer_0_weights || layer_1_weights || ... || layer_N_weights"
