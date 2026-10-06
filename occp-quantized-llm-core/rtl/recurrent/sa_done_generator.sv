@@ -1,13 +1,11 @@
 // ============================================================
 // sa_done_generator.sv
 // مولّد إشارة done حقيقية بناءً على تأخير قابل للبرمجة
-// التوقيت: done تُصدر بعد LATENCY نبضة من rising edge الـ start المسجَّل
 // ============================================================
 `timescale 1ns/1ps
 
 module sa_done_generator #(
-    parameter int LATENCY_WIDTH   = 8,
-    parameter int DEFAULT_LATENCY = 11
+    parameter int LATENCY_WIDTH = 8
 )(
     input  logic                        clk,
     input  logic                        rst_n,

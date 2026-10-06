@@ -1,10 +1,13 @@
 // ============================================================
 // occp_pipeline_fsm.sv
-// الدماغ: يدير الحلقة العودية عبر الطبقات
+// آلة الحالات المسؤولة عن تشغيل خط المعالجة العودي الكامل:
+//   IDLE -> LOAD_META -> PREFETCH_W -> LOAD_LAYER_0 -> COMPUTE
+//        -> WAIT_DONE  -> LOOP_CHECK -> (PREFETCH_W | OUTPUT_TOKEN)
+// المدخلات/المخرجات مطابقة للعقد في contracts/recurrent_interfaces.yaml
+// ملاحظة: metadata_in كلمة 64-bit مسطّحة little-endian مطابقة
+// لـ model_header_t في الحزمة (byte0 = total_layers).
 // ============================================================
 `timescale 1ns/1ps
-
-import model_metadata_pkg::*;
 
 module occp_pipeline_fsm #(
     parameter int MAX_LAYERS = 128
@@ -12,202 +15,139 @@ module occp_pipeline_fsm #(
     input  logic                clk,
     input  logic                rst_n,
 
-    // واجهة Host
+    // من المضيف
     input  logic                host_start,
-    output logic                host_busy,
 
-    // Metadata
-    input  model_header_t       metadata_in,
+    // من metadata_parser
+    input  logic [63:0]         metadata_in,     // رأس 8 بايت little-endian
     input  logic                metadata_valid,
 
-    // Datapath
+    // من recurrent_datapath
+    input  logic                layer_done,
+
+    // من softmax_unit
+    input  logic                softmax_done,
+
+    // من weight_pingpong (load_done)
+    input  logic                weight_ready,
+
+    // إلى datapath
     output logic                sel_external,
     output logic                capture_loop,
     output logic                start_layer,
-    input  logic                layer_done,
-    input  logic                softmax_done,
 
-    // الأوزان
+    // إلى نظام الأوزان
     output logic                buf_sel,
     output logic                weight_load_en,
     output logic [7:0]          weight_layer_idx,
-    input  logic                weight_ready,
 
-    // المخرجات
+    // إلى الواجهة الخارجية
     output logic                output_token_valid,
-    output logic [7:0]          layer_counter_out
+    output logic                pipeline_busy,
+    output logic [7:0]          layer_counter_out,
+
+    // حالة الآلة للمراقبة
+    output logic [3:0]          state_out
 );
 
-    fsm_state_t state, next_state;
+    // أكواد الحالات مطابقة لـ rtl/common/fsm_state_pkg.sv
+    localparam logic [3:0] S_IDLE         = 4'd0;
+    localparam logic [3:0] S_LOAD_META    = 4'd1;
+    localparam logic [3:0] S_PREFETCH_W   = 4'd2;
+    localparam logic [3:0] S_LOAD_LAYER_0 = 4'd3;
+    localparam logic [3:0] S_COMPUTE      = 4'd4;
+    localparam logic [3:0] S_WAIT_DONE    = 4'd5;
+    localparam logic [3:0] S_LOOP_CHECK   = 4'd6;
+    localparam logic [3:0] S_OUTPUT_TOKEN = 4'd7;
+    localparam logic [3:0] S_ERROR        = 4'd8;
 
-    logic [7:0] layer_counter;
-    logic [7:0] total_layers;
+    logic [3:0] state, next_state;
+
+    logic [7:0] total_layers_reg;
+    logic [7:0] running_count;    // عدد الطبقات المكتملة (سجل حقيقي)
+    logic       started;          // تم بدء التوكن الحالي
+    logic [7:0] layer_count;      // نسخة توافقية للعرض والتوجيه
     logic       is_last_layer;
 
-    // ------------------------------------------------------------
-    // التقاط Metadata وعدّاد الطبقات (سجلات)
-    // ------------------------------------------------------------
+    // ----------------------------------------------------------
+    // عدّاد الطبقات المسجل: يتقدم على الحافة التي تلي نبضة
+    // start_layer (نهاية دورة COMPUTE).
+    // ----------------------------------------------------------
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            total_layers  <= '0;
-            layer_counter <= '0;
+            running_count <= 8'd0;
+            started       <= 1'b0;
+        end else if ((state == S_IDLE) && host_start) begin
+            running_count <= 8'd0;               // تصفير عند بداية توكن جديد
+            started       <= 1'b0;
         end else begin
-            case (state)
-                S_LOAD_META: begin
-                    total_layers  <= metadata_in.total_layers;
-                    layer_counter <= 8'd0;
-                end
-
-                S_LOOP_CHECK: begin
-                    if (!is_last_layer)
-                        layer_counter <= layer_counter + 1'b1;
-                end
-
-                S_OUTPUT_TOKEN: begin
-                    layer_counter <= 8'd0;
-                    total_layers  <= 8'd0;
-                end
-
-                default: ;
-            endcase
+            if (start_layer) started <= 1'b1;
+            if (state == S_COMPUTE) begin
+                running_count <= running_count + 8'd1;
+            end
         end
     end
 
-    assign is_last_layer     = (total_layers != 8'd0) &&
-                               (layer_counter >= total_layers - 1'b1);
-    assign layer_counter_out = layer_counter;
+    // نسخة توافقية: أثناء COMPUTE تكون الطبقة الجارية قد بدأت للتو
+    always_comb begin
+        if (state == S_COMPUTE) layer_count = running_count + 8'd1;
+        else                    layer_count = running_count;
+    end
 
-    // "بنك الطبقة التالية" = الطبقة التي ستُحسب تالياً بعد اكتمال الحالية
-    wire [7:0] next_layer_bank = ((layer_counter + 8'd1) >= total_layers)
-                                 ? 8'd0
-                                 : (layer_counter + 8'd1);
+    assign layer_counter_out = layer_count;
 
-    // ------------------------------------------------------------
-    // منطق الانتقال
-    // ------------------------------------------------------------
+    // الطبقة الجارية هي الأخيرة إذا كان رقمها = total_layers
+    assign is_last_layer = (layer_count >= total_layers_reg) && started;
+
+    // ----------------------------------------------------------
+    // سجل الحالة + التقاط Metadata أثناء S_LOAD_META
+    // ----------------------------------------------------------
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            state            <= S_IDLE;
+            total_layers_reg <= 8'd0;
+        end else begin
+            state <= next_state;
+            if ((state == S_LOAD_META) && metadata_valid) begin
+                total_layers_reg <= metadata_in[7:0];   // byte 0 = total_layers
+            end
+        end
+    end
+
+    // ----------------------------------------------------------
+    // منطق الحالة التالي
+    // ----------------------------------------------------------
     always_comb begin
         next_state = state;
-        unique case (state)
-            S_IDLE: begin
-                if (host_start && metadata_valid)
-                    next_state = S_LOAD_META;
-            end
-
-            S_LOAD_META: begin
-                next_state = S_PREFETCH_W;
-            end
-
-            S_PREFETCH_W: begin
-                if (weight_ready)
-                    next_state = S_LOAD_LAYER_0;
-            end
-
-            S_LOAD_LAYER_0: begin
-                next_state = S_COMPUTE;
-            end
-
-            S_COMPUTE: begin
-                next_state = S_WAIT_DONE;
-            end
-
-            S_WAIT_DONE: begin
-                if (layer_done && softmax_done)
-                    next_state = S_LOOP_CHECK;
-            end
-
+        case (state)
+            S_IDLE:         if (host_start) next_state = S_LOAD_META;
+            S_LOAD_META:    if (metadata_valid) next_state = S_PREFETCH_W;
+            S_PREFETCH_W:   if (weight_ready)   next_state = S_COMPUTE;
+            S_COMPUTE:                          next_state = S_WAIT_DONE;
+            S_WAIT_DONE:    if (layer_done)     next_state = S_LOOP_CHECK;
             S_LOOP_CHECK: begin
-                if (is_last_layer)
-                    next_state = S_OUTPUT_TOKEN;
-                else
-                    next_state = S_PREFETCH_W;   // تحميل أوزان الطبقة التالية ثم حسابها
+                if (is_last_layer)              next_state = S_OUTPUT_TOKEN;
+                else                            next_state = S_PREFETCH_W; // شحن أوزان الطبقة التالية
             end
-
-            S_OUTPUT_TOKEN: begin
-                next_state = S_IDLE;             // نبضة حالة واحدة ثم العودة
-            end
-
-            S_ERROR: begin
-                if (!host_start)
-                    next_state = S_IDLE;
-            end
-
-            default: next_state = S_IDLE;
+            S_OUTPUT_TOKEN: if (softmax_done)   next_state = S_IDLE;
+            S_ERROR:                            next_state = S_IDLE;
+            default:                            next_state = S_ERROR;
         endcase
     end
 
-    // ------------------------------------------------------------
-    // سجل الحالة
-    // ------------------------------------------------------------
-    always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n) state <= S_IDLE;
-        else        state <= next_state;
-    end
-
-    // ------------------------------------------------------------
-    // منطق المخرجات (توافقي من الحالة + العدّاد)
-    // ------------------------------------------------------------
+    // ----------------------------------------------------------
+    // إشارات التحكم — نبضة start_layer أحادية الدورة في S_COMPUTE
+    // ----------------------------------------------------------
     always_comb begin
-        sel_external       = 1'b0;
-        capture_loop       = 1'b0;
-        start_layer        = 1'b0;
-        buf_sel            = 1'b0;
-        weight_load_en     = 1'b0;
-        weight_layer_idx   = 8'd0;
-        output_token_valid = 1'b0;
-        host_busy          = 1'b1;
-
-        unique case (state)
-            S_IDLE: begin
-                host_busy    = 1'b0;
-                sel_external = 1'b1;
-            end
-
-            S_LOAD_META: begin
-                // لا مخرجات فعلية
-            end
-
-            S_PREFETCH_W: begin
-                // تحميل بنك الطبقة الجارية (يُقرأ منه الحساب القادم)
-                buf_sel          = layer_counter[0];
-                weight_load_en   = 1'b1;
-                weight_layer_idx = layer_counter;
-            end
-
-            S_LOAD_LAYER_0: begin
-                sel_external     = 1'b1;
-                buf_sel          = layer_counter[0];
-                weight_load_en   = 1'b1;
-                weight_layer_idx = layer_counter;
-            end
-
-            S_COMPUTE: begin
-                start_layer      = 1'b1;
-                sel_external     = (layer_counter == 8'd0);
-                capture_loop     = (layer_counter != 8'd0);
-                buf_sel          = layer_counter[0];
-                weight_load_en   = 1'b1;           // تحمّل مسبق لبنك الطبقة التالية
-                weight_layer_idx = next_layer_bank;
-            end
-
-            S_WAIT_DONE: begin
-                capture_loop = (layer_counter != 8'd0);
-                buf_sel      = layer_counter[0];
-            end
-
-            S_LOOP_CHECK: begin
-                capture_loop = 1'b1;               // التقاط ناتج الطبقة المكتملة
-            end
-
-            S_OUTPUT_TOKEN: begin
-                output_token_valid = 1'b1;
-            end
-
-            S_ERROR: begin
-                host_busy = 1'b1;
-            end
-
-            default: ;
-        endcase
+        sel_external       = (state == S_COMPUTE) && (layer_count == 8'd1);
+        capture_loop       = (state == S_WAIT_DONE) && !is_last_layer;
+        start_layer        = (state == S_COMPUTE);
+        weight_load_en     = (state == S_PREFETCH_W);
+        buf_sel            = layer_count[0];
+        weight_layer_idx   = layer_count;
+        output_token_valid = (state == S_OUTPUT_TOKEN) && softmax_done;
+        pipeline_busy      = (state != S_IDLE);
+        state_out          = state;
     end
 
 endmodule

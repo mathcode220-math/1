@@ -63,9 +63,37 @@ modules:
         clk:         {width: 1}
         rst_n:       {width: 1}
         start:       {width: 1, source: fsm}
-        latency_cfg: {width: "LATENCY_WIDTH", description: "تأخير قابل للبرمجة بالنبضات"}
+        latency_cfg: {width: "LATENCY_WIDTH", source: csr}
       outputs:
-        done:        {width: 1, dest: fsm, timing: "done بعد LATENCY نبضة من rising edge الـ start المسجَّل"}
+        done:        {width: 1, dest: fsm}
+
+  layer_counter:
+    type: sequential
+    parameters:
+      WIDTH: {default: 8}
+    ports:
+      inputs:
+        clk:          {width: 1}
+        rst_n:        {width: 1}
+        inc:          {width: 1, source: fsm}
+        clr:          {width: 1, source: fsm}
+        total_layers: {width: "WIDTH", source: metadata_parser}
+      outputs:
+        count:        {width: "WIDTH", dest: fsm}
+        is_last:      {width: 1, dest: fsm}
+
+  metadata_parser:
+    type: sequential
+    parameters: {}
+    ports:
+      inputs:
+        clk:        {width: 1}
+        rst_n:      {width: 1}
+        raw_word:   {width: 64, source: axi, note: "little-endian per metadata_format.yaml"}
+        parse_en:   {width: 1, source: host}
+      outputs:
+        metadata_out: {type: model_header_t, dest: fsm}
+        metadata_valid: {width: 1, dest: fsm}
 
   occp_pipeline_fsm:
     type: sequential
@@ -76,6 +104,7 @@ modules:
         clk:                {width: 1}
         rst_n:              {width: 1}
         host_start:         {width: 1}
+        metadata_in:        {type: model_header_t}
         metadata_valid:     {width: 1}
         layer_done:         {width: 1}
         softmax_done:       {width: 1}
