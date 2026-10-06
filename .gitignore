@@ -1,3 +1,2 @@
-# Simulation and build artifacts
-*.vcd
-*.vvp
+# Compiled/Binary files
+*.out
