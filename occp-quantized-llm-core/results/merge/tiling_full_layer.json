@@ -1,0 +1,15 @@
+{
+  "source": "safetensors:distilbert.transformer.layer.0.attention.q_lin.weight",
+  "layer": "768x768",
+  "total_tiles": 36864,
+  "sampled": 32,
+  "sampled_bit_exact": true,
+  "sampled_exact_count": 32,
+  "sampled_seconds": 0.10147582799982047,
+  "mean_seconds_per_tile": 0.0031711196249943896,
+  "sampled_cycles": 352,
+  "expected_full_layer_seconds": 116.90015385579318,
+  "expected_full_layer_cycles": 405504.0,
+  "sim_over_60s": true,
+  "note": "Architecture does not scale to a 768 layer in Verilator wall time"
+}

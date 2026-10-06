@@ -1,0 +1,61 @@
+{
+  "source": "distilbert-base-uncased",
+  "n_inputs": 32,
+  "rows": [
+    {
+      "name": "attention.query_proj",
+      "shape": [
+        768,
+        768
+      ],
+      "max_abs_W": 0.7052270174026489,
+      "scale_w": 0.00555296864096574,
+      "max_abs_x": 4.479084014892578,
+      "scale_x": 0.0352683780700203,
+      "product_scale": 0.00019584419744054653,
+      "max_abs_y_int": 30715,
+      "signed_bits_needed": 16,
+      "fits_q24": true,
+      "fits_2_20": true,
+      "q24_headroom_bits": 8
+    },
+    {
+      "name": "attention.value_proj",
+      "shape": [
+        768,
+        768
+      ],
+      "max_abs_W": 0.19956651329994202,
+      "scale_w": 0.0015713898685034804,
+      "max_abs_x": 4.465603828430176,
+      "scale_x": 0.03516223486952894,
+      "product_scale": 5.525357962791758e-05,
+      "max_abs_y_int": 76443,
+      "signed_bits_needed": 18,
+      "fits_q24": true,
+      "fits_2_20": true,
+      "q24_headroom_bits": 6
+    },
+    {
+      "name": "mlp.dense",
+      "shape": [
+        3072,
+        768
+      ],
+      "max_abs_W": 0.34631913900375366,
+      "scale_w": 0.002726922354360265,
+      "max_abs_x": 4.157733917236328,
+      "scale_x": 0.032738062340443526,
+      "product_scale": 8.92741540345954e-05,
+      "max_abs_y_int": 81803,
+      "signed_bits_needed": 18,
+      "fits_q24": true,
+      "fits_2_20": true,
+      "q24_headroom_bits": 6
+    }
+  ],
+  "max_abs_y_int": 81803,
+  "q24_ok": true,
+  "verdict": "Q24 sufficient with margin (all |y_int| < 2^20)",
+  "note": "Q24 here is the inter-layer requantize ratio, not the MAC accumulator. MAC uses INT32. Ratio = scale1/scale2 packed as Q24."
+}

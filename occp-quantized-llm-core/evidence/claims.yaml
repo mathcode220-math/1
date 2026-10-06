@@ -1,0 +1,71 @@
+int8_linear_relu_4x4:
+  result: verified
+  evidence: results/rtl_scaling.json
+  metric: bit_exact
+  value: true
+
+quant_int8_real_weights:
+  result: verified
+  evidence: results/onnx_test.json
+  model: distilbert-base-uncased
+  max_error: 0.033088
+  source: safetensors:distilbert-base-uncased
+
+rtl_scaling:
+  result: verified
+  evidence: results/rtl_scaling.json
+  tested_sizes: [4, 8, 16]
+  cycles: {4: 11, 8: 19, 16: 35}
+  bit_exact: true
+
+two_layer_rtl:
+  result: verified
+  evidence: results/multi_layer.json
+  metric: max_rel_fp32
+  value: 0.002501
+  bit_exact: true
+  verified_on_rtl: true
+  cycles: 24
+
+quantizer_int4:
+  result: refuted
+  evidence: results/int4_accumulation.json
+  metric: max_rel_fp32_3layer
+  value: 0.268647
+
+stats_formula:
+  result: verified
+  evidence: tests/unit/test_quantizer.py
+  metric: variance_retained_uses_full_S
+  value: true
+
+tiling_gemv:
+  result: verified
+  evidence: results/merge/tiling_scaling.json
+  metric: bit_exact
+  value: true
+  note: 16/32/64 GEMV tiles no per-tile ReLU; 11 cycles/tile; DistilBERT q_lin
+
+tiling_768_wall_time:
+  result: verified
+  evidence: results/merge/tiling_full_layer.json
+  metric: expected_full_layer_seconds
+  value: 116.9
+  note: 36864 tiles; 32 sampled bit-exact; full Verilator wall time > 60s
+
+q24_range:
+  result: verified
+  evidence: results/merge/q24_analysis.json
+  metric: q24_ok
+  value: true
+  note: DistilBERT q/v/ffn max |y_int| 81803 < 2^20
+
+hyperbolic_advantage:
+  result: refuted
+  evidence: deprecated/hyperbolic_projection.md
+  value: null
+
+softmax_core:
+  result: refuted
+  evidence: deprecated/softmax_core.md
+  value: null

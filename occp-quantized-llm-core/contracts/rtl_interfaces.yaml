@@ -1,0 +1,33 @@
+name: rtl_interfaces
+version: 1
+description: KEEP RTL contracts for INT8 Linear+ReLU and tiled GEMV.
+
+systolic_array_param:
+  role: unmodified OCCP math_core copy
+  gemv: row_0
+  weights: INT8
+  activations: INT8
+  accumulator: INT32
+
+relu_activation:
+  DATA_WIDTH: 32
+  note: avoid OCCP 16-bit default truncation
+
+linear_relu_4x4:
+  y: ReLU(x @ W + b)
+  W_x: INT8 HEX
+  b: INT32 accumulator-scale HEX
+  N_default: 4
+
+linear_relu_2layer:
+  requantize: Q24
+  formula: hq = clip((acc * ratio +/- 2^23) >>> 24, -127, 127)
+  ratio_source: Python precomputed scale1/scale2
+  N_rtl: 4
+  cycles_expected: 24
+
+gemv:
+  relu: false
+  use: tiling host-sum INT32 then bias+ReLU
+  tile: 4x4
+  plusargs: [weights, input, out_hex, out_cyc]

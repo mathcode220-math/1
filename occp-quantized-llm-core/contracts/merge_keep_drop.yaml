@@ -1,0 +1,26 @@
+name: merge_keep_drop
+version: 1
+license: CERN-OHL-W
+
+KEEP:
+  - rtl/systolic_array_param.sv
+  - rtl/relu_activation.sv
+  - rtl/linear_relu.sv
+  - rtl/linear_relu_4x4.sv
+  - rtl/linear_relu_2layer.sv
+  - rtl/gemv.sv
+  - software/quantizer.py
+  - DistilBERT INT8 Linear evidence
+
+DROP:
+  - hyperbolic SVD+Mobius
+  - softmax_core
+  - INT4 compute path
+  - open_cognitive_top
+  - Pocket-LLM runtime import
+  - external/ submodules in this tree
+
+HOLD:
+  - 768x768 full-layer Verilator (tile count 36864)
+  - on-chip scale1/scale2 (ratio still host Q24)
+  - tokenizer KV attention LM head

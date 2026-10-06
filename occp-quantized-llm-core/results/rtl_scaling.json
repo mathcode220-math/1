@@ -1,0 +1,64 @@
+{
+  "result": "verified",
+  "tested_sizes": [
+    4,
+    8,
+    16
+  ],
+  "cycles": {
+    "4": 11,
+    "8": 19,
+    "16": 35
+  },
+  "cycle_growth": {
+    "8/4": 1.7272727272727273,
+    "16/8": 1.8421052631578947,
+    "16/4": 3.1818181818181817
+  },
+  "linear_cycle_scaling": true,
+  "quadratic_or_worse": false,
+  "rows": [
+    {
+      "n": 4,
+      "sw_max_rel": 0.009970749156689333,
+      "sim": {
+        "ok": true,
+        "tool": "verilator",
+        "cycles": 11,
+        "seconds": 15.218953417999728
+      },
+      "rtl_int_mae": 0.0,
+      "rtl_fp_max_rel": 0.009970749156689333,
+      "bit_exact": true,
+      "pass_5pct": true
+    },
+    {
+      "n": 8,
+      "sw_max_rel": 0.004058075752011089,
+      "sim": {
+        "ok": true,
+        "tool": "verilator",
+        "cycles": 19,
+        "seconds": 13.599221914000736
+      },
+      "rtl_int_mae": 0.0,
+      "rtl_fp_max_rel": 0.004058075752011089,
+      "bit_exact": true,
+      "pass_5pct": true
+    },
+    {
+      "n": 16,
+      "sw_max_rel": 0.018097183846331546,
+      "sim": {
+        "ok": true,
+        "tool": "verilator",
+        "cycles": 35,
+        "seconds": 14.403526316000352
+      },
+      "rtl_int_mae": 0.0,
+      "rtl_fp_max_rel": 0.018097183846331546,
+      "bit_exact": true,
+      "pass_5pct": true
+    }
+  ]
+}

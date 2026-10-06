@@ -1,0 +1,69 @@
+{
+  "result": "verified",
+  "source": "safetensors:distilbert-base-uncased:/workspace/build/models/distilbert-base-uncased.safetensors",
+  "model": "safetensors:distilbert-base-uncased:/workspace/build/models/distilbert-base-uncased.safetensors",
+  "notes": [
+    "transformers unavailable: No module named 'transformers'"
+  ],
+  "error_limit": 0.05,
+  "warn_limit": 0.1,
+  "max_error": 0.03308822538490322,
+  "tested_layers": [
+    {
+      "name": "attention.query_proj",
+      "tensor_key": "distilbert.transformer.layer.0.attention.q_lin.weight",
+      "shape": [
+        768,
+        768
+      ],
+      "max_rel": 0.03308822538490322,
+      "pass_5pct": true,
+      "pass_10pct": true,
+      "scale": 0.005552968475967646,
+      "weight_min": -0.7052270174026489,
+      "weight_max": 0.4976351261138916,
+      "abs_p99": 0.11935924738645554,
+      "abs_max": 0.7052270174026489,
+      "outlier_ratio": 5.908440551064295,
+      "n_inputs": 100
+    },
+    {
+      "name": "attention.value_proj",
+      "tensor_key": "distilbert.transformer.layer.0.attention.v_lin.weight",
+      "shape": [
+        768,
+        768
+      ],
+      "max_rel": 0.013005203626645222,
+      "pass_5pct": true,
+      "pass_10pct": true,
+      "scale": 0.0015713898465037346,
+      "weight_min": -0.19015152752399445,
+      "weight_max": 0.19956651329994202,
+      "abs_p99": 0.09069599211215973,
+      "abs_max": 0.19956651329994202,
+      "outlier_ratio": 2.200389550324858,
+      "n_inputs": 100
+    },
+    {
+      "name": "mlp.dense",
+      "tensor_key": "distilbert.transformer.layer.0.ffn.lin1.weight",
+      "shape": [
+        3072,
+        768
+      ],
+      "max_rel": 0.011655124732881508,
+      "pass_5pct": true,
+      "pass_10pct": true,
+      "scale": 0.0027269222773611546,
+      "weight_min": -0.34631913900375366,
+      "weight_max": 0.32586750388145447,
+      "abs_p99": 0.11168525367975235,
+      "abs_max": 0.34631913900375366,
+      "outlier_ratio": 3.1008492848733042,
+      "n_inputs": 100
+    }
+  ],
+  "failed_layers": [],
+  "replaced_squeezenet": true
+}

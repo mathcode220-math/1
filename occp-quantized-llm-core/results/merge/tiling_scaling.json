@@ -1,0 +1,43 @@
+{
+  "source": "safetensors:distilbert.transformer.layer.0.attention.q_lin.weight",
+  "rows": [
+    {
+      "n": 16,
+      "tiles": 16,
+      "bit_exact": true,
+      "mae_int": 0.0,
+      "max_rel_fp32": 0.009650049157512441,
+      "pass_5pct": true,
+      "cycles": 176,
+      "cycles_per_tile": 11.0,
+      "seconds": 14.028639034000662,
+      "product_scale": 1.3273544977960612e-05
+    },
+    {
+      "n": 32,
+      "tiles": 64,
+      "bit_exact": true,
+      "mae_int": 0.0,
+      "max_rel_fp32": 0.011553822438148231,
+      "pass_5pct": true,
+      "cycles": 704,
+      "cycles_per_tile": 11.0,
+      "seconds": 0.20979600200007553,
+      "product_scale": 2.0476104318053614e-05
+    },
+    {
+      "n": 64,
+      "tiles": 256,
+      "bit_exact": true,
+      "mae_int": 0.0,
+      "max_rel_fp32": 0.009871770368454129,
+      "pass_5pct": true,
+      "cycles": 2816,
+      "cycles_per_tile": 11.0,
+      "seconds": 0.8409555370017188,
+      "product_scale": 2.3900209301456102e-05
+    }
+  ],
+  "linear_cycle_scaling": true,
+  "error_grows": true
+}

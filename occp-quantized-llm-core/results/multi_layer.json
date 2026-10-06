@@ -1,0 +1,27 @@
+{
+  "result": "verified",
+  "verified_on_rtl": true,
+  "bit_exact_vs_int_golden": true,
+  "mae_int": 0.0,
+  "max_relative_error": 0.00250075352271871,
+  "sw_max_rel": 0.00250075352271871,
+  "cycles": 24,
+  "y_ref": [
+    0.0,
+    0.0,
+    0.0,
+    1.139059066772461
+  ],
+  "y_int": [
+    0,
+    0,
+    0,
+    14434
+  ],
+  "y_rtl_int": [
+    0,
+    0,
+    0,
+    14434
+  ]
+}

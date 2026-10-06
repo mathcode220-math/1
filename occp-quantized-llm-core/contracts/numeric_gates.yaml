@@ -1,0 +1,28 @@
+name: numeric_gates
+version: 1
+description: Hard numeric gates. Do not lower thresholds.
+
+gates:
+  int8_vs_fp32:
+    metric: max_rel
+    pass: 0.05
+    layers: [Linear, ReLU]
+  two_layer_vs_fp32:
+    metric: max_rel
+    pass: 0.05
+    warn_accumulation: 0.10
+  rtl_vs_int_golden:
+    metric: mae
+    pass: 0.0
+    note: bit-exact integer MAC+ReLU
+  int4_vs_fp32:
+    success: 0.10
+    kill: 0.15
+    status: dropped
+    reason: 3-layer accumulation 26.86% >= 15%
+
+forbidden:
+  - lower_any_gate
+  - fake_4bit_mac
+  - squeezenet_as_llm_proof
+  - bitstoshortreal

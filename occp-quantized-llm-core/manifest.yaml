@@ -1,0 +1,32 @@
+project: occp-quantized-llm-core
+updated: 2026-09-22
+license: CERN-OHL-W
+self_contained: true
+units:
+  systolic_array_param:
+    status: verified
+    reason: INT8 GEMV+ReLU N=4/8/16 bit-exact vs integer golden
+  relu_activation:
+    status: verified
+    reason: DATA_WIDTH=32 in wrapper
+  quantizer_int8:
+    status: verified
+    reason: DistilBERT q/v/ffn INT8 max_rel 3.31% < 5%
+  rtl_scaling:
+    status: verified
+    reason: N=4/8/16 bit-exact; cycles 11/19/35
+  two_layer_rtl:
+    status: verified
+    reason: Q24 requantize; INT MAE=0; fp max_rel 0.25%; 24 cycles
+  gemv_tiling:
+    status: hold
+    reason: host-sum INT32 tiles; 768 full layer not claimed in Verilator wall time
+  quantizer_int4:
+    status: deprecated
+  hyperbolic_projection:
+    status: deprecated
+  softmax_core:
+    status: deprecated
+merge:
+  allowed: true
+  condition: INT8 Linear+ReLU only

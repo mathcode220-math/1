@@ -1,0 +1,13 @@
+{
+  "source": "safetensors:distilbert.transformer.layer.0.attention.q_lin.weight",
+  "n": 16,
+  "tiles": 16,
+  "bit_exact": true,
+  "mae_int": 0.0,
+  "max_rel_fp32": 0.009650049157512441,
+  "pass_5pct": true,
+  "cycles": 176,
+  "cycles_per_tile": 11.0,
+  "seconds": 14.028639034000662,
+  "product_scale": 1.3273544977960612e-05
+}
