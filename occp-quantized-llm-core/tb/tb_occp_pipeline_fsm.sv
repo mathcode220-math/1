@@ -1,6 +1,14 @@
 `timescale 1ns/1ps
 
-// Testbench لوحدة occp_pipeline_fsm — المنافذ مسطّحة، بدون حزم في TB
+// ============================================================
+// Testbench لوحدة occp_pipeline_fsm — النسخة المُصلَحة (E-6)
+// القواعد:
+//   * بعد كل فحص حالة يجب الانتظار حافة كاملة قبل الفحص التالي.
+//   * لا يوجد انتقال فوري LOOP_CHECK -> OUTPUT_TOKEN في نفس الحافة؛
+//     بينهما حافة واحدة على الأقل.
+//   * S_LOAD_LAYER_0 حالة حية الآن في المسار (E-2).
+//   * WAIT_DONE يشترط layer_done && softmax_done معاً (E-3).
+// ============================================================
 module tb_occp_pipeline_fsm;
 
     localparam logic [3:0] S_IDLE          = 4'd0;
@@ -43,18 +51,18 @@ module tb_occp_pipeline_fsm;
     occp_pipeline_fsm dut (.*);
 
     int error_count = 0;
+    int token_pulses_seen = 0;
+
+    // مراقب نبضات التوكن (يجب أن تكون دورة واحدة بالضبط لكل توكن)
+    always @(posedge clk) begin
+        if (output_token_valid === 1'b1) token_pulses_seen++;
+    end
 
     initial begin
-        #20000;
+        #50000;
         $error("FAIL: watchdog timeout");
         $finish;
     end
-
-    // التقدم بحافة واحدة مع انتظار استقرار المخرجات التوافقية بعدها
-    task automatic step();
-        @(negedge clk);           // منتصف الدورة: تحديث المحفزات بأمان
-        @(posedge clk); #1;       // الحافة تُلتقط ثم تستقر المخرجات
-    endtask
 
     task automatic expect_state(string where, logic [3:0] exp);
         if (state_out !== exp) begin
@@ -63,44 +71,100 @@ module tb_occp_pipeline_fsm;
         end
     endtask
 
-    // طبقة وسطى كاملة من WAIT_DONE الحالي حتى WAIT_DONE التالي
-    task automatic run_middle_layer(int L);
-        layer_done = 1'b1;
-        @(negedge clk);                 // استقر layer_done قبل الحافة
-        @(posedge clk); #1;
-        layer_done = 1'b0;
-        expect_state("loop-check", S_LOOP_CHECK);
-        @(negedge clk);                 // LOOP_CHECK -> PREFETCH_W على الحافة التالية
-        @(posedge clk); #1;
-        expect_state("prefetch", S_PREFETCH_W);
-        if (weight_load_en !== 1'b1) begin
-            $error("L%0d: weight_load_en high in PREFETCH_W", L);
+    task automatic expect_eq8(string where, logic [7:0] got, logic [7:0] exp);
+        if (got !== exp) begin
+            $error("%s: got %0d expected %0d", where, got, exp);
             error_count++;
         end
-        weight_ready = 1'b1;
+    endtask
+
+    // التقدم بحافة كاملة واحدة
+    task automatic step();
         @(negedge clk);
         @(posedge clk); #1;
-        weight_ready = 1'b0;
-        expect_state("compute", S_COMPUTE);
+    endtask
+
+    // ----------------------------------------------------------
+    // طبقة كاملة: من PREFETCH_W حتى WAIT_DONE التالي
+    // L = رقم الطبقة (0-based) الجارية
+    // ----------------------------------------------------------
+    task automatic run_full_layer(int L, int last);
+        // PREFETCH_W: weight_load_en مرتفع وفهرس الشحن = L+1 (1-based)
+        expect_state($sformatf("L%0d prefetch", L), S_PREFETCH_W);
+        if (weight_load_en !== 1'b1) begin
+            $error("L%0d: weight_load_en not high in PREFETCH_W", L);
+            error_count++;
+        end
+        expect_eq8($sformatf("L%0d load idx", L), weight_layer_idx, L[7:0] + 8'd1);
+        step();  // -> LOAD_LAYER_0 (E-2: حالة حية)
+
+        expect_state($sformatf("L%0d load-layer-0", L), S_LOAD_LAYER_0);
+        if (L == 0) begin
+            if (sel_external !== 1'b1) begin
+                $error("L0: sel_external must be high in LOAD_LAYER_0");
+                error_count++;
+            end
+        end
+        if (!last) begin
+            expect_eq8($sformatf("L%0d next idx in LOAD0", L),
+                       weight_layer_idx, L[7:0] + 8'd2);
+        end
+        step();  // -> COMPUTE
+
+        expect_state($sformatf("L%0d compute", L), S_COMPUTE);
         if (start_layer !== 1'b1) begin
             $error("L%0d: start_layer pulse missing in COMPUTE", L);
             error_count++;
         end
-        if (layer_counter_out !== (L+1)) begin
-            $error("L%0d: layer_counter_out=%0d expected %0d", L, layer_counter_out, L+1);
+        if (sel_external !== ((L == 0) ? 1'b1 : 1'b0)) begin
+            $error("L%0d: sel_external=%b unexpected", L, sel_external);
             error_count++;
         end
-        @(negedge clk);
-        @(posedge clk); #1;             // COMPUTE -> WAIT_DONE
-        expect_state("wait", S_WAIT_DONE);
+        if (buf_sel !== ((L[0] == 1'b0) ? 1'b1 : 1'b0)) begin
+            $error("L%0d: buf_sel=%b expected %b (layer bank = (L+1)[0])",
+                   L, buf_sel, (L[0] == 1'b0));
+            error_count++;
+        end
+        expect_eq8($sformatf("L%0d counter during compute", L),
+                   layer_counter_out, L[7:0]);
+        step();  // -> WAIT_DONE
+
+        expect_state($sformatf("L%0d wait", L), S_WAIT_DONE);
         if (start_layer !== 1'b0) begin
             $error("L%0d: start_layer must be single-cycle pulse", L);
             error_count++;
         end
-        if (capture_loop !== 1'b1) begin
-            $error("L%0d: capture_loop high in WAIT_DONE", L);
+        if (capture_loop !== (last ? 1'b0 : 1'b1)) begin
+            $error("L%0d: capture_loop=%b expected %b", L, capture_loop, !last);
             error_count++;
         end
+
+        // نغادر WAIT_DONE عند الحافة التالية — لا شيء يُفعّل هنا.
+    endtask
+
+    // إتمام طبقة من WAIT_DONE الحالي: فحص E-3 ثم الإكمال إلى PREFETCH_W
+    // (أو OUTPUT_TOKEN إذا كانت last). تنتهي المهمة بعد حافة المغادرة.
+    task automatic finish_layer(int L, int last);
+        // E-3: layer_done وحده لا يكفي — تبقى الآلة في WAIT_DONE
+        @(negedge clk);
+        layer_done = 1'b1; softmax_done = 1'b0;
+        @(posedge clk); #1;
+        expect_state($sformatf("L%0d still waiting (no softmax)", L), S_WAIT_DONE);
+        expect_eq8($sformatf("L%0d counter not advanced w/o softmax", L),
+                   layer_counter_out, L[7:0]);
+
+        // الاثنتان معاً -> الحافة التالية تغادر WAIT_DONE (العدّاد يتقدم E-1)
+        @(negedge clk);
+        softmax_done = 1'b1;   // layer_done ما زال مرتفعاً
+        @(posedge clk); #1;
+        layer_done = 1'b0; softmax_done = 1'b0;
+        expect_state($sformatf("L%0d loop-check", L), S_LOOP_CHECK);
+        expect_eq8($sformatf("L%0d counter after done", L),
+                   layer_counter_out, L[7:0] + 8'd1);
+        // حافة المغادرة من LOOP_CHECK: غير الأخيرة -> PREFETCH_W، الأخيرة -> OUTPUT_TOKEN
+        step();
+        if (!last)
+            expect_state($sformatf("L%0d next prefetch", L), S_PREFETCH_W);
     endtask
 
     initial begin
@@ -108,114 +172,97 @@ module tb_occp_pipeline_fsm;
         softmax_done=0; weight_ready=0; metadata_in='0;
         @(negedge clk);
         rst_n = 1;
-        @(posedge clk); #1;
+        step();
 
         // ---- T1: IDLE بعد إعادة الضبط ----
-        if (state_out !== S_IDLE || pipeline_busy !== 1'b0) begin
-            $error("T1: not in IDLE after reset");
+        expect_state("T1", S_IDLE);
+        if (pipeline_busy !== 1'b0) begin
+            $error("T1: pipeline_busy should be low in IDLE");
             error_count++;
         end
 
-        // ---- T2: host_start -> S_LOAD_META ----
-        host_start = 1; @(negedge clk); @(posedge clk); #1; host_start = 0;
-        expect_state("T2", S_LOAD_META);
+        // ---- T2: host_start بدون metadata -> يبقى IDLE ----
+        @(negedge clk); host_start = 1;
+        @(posedge clk); #1;
+        @(negedge clk); host_start = 0;
+        expect_state("T2 no-metadata stays idle", S_IDLE);
 
-        // ---- T3: التقاط total_layers ----
-        metadata_in = 64'h0;
-        metadata_in[7:0]   = 8'd3;    // total_layers = 3
-        metadata_in[55:40] = 16'd4;   // vector_len = 4
-        metadata_valid = 1; @(negedge clk); @(posedge clk); #1; metadata_valid = 0;
-        expect_state("T3->PREFETCH", S_PREFETCH_W);
+        // ---- T3: نفس حافة host_start+metadata_valid -> LOAD_META ----
+        @(negedge clk);
+        metadata_in = '0;
+        metadata_in[7:0] = 8'd3;                 // total_layers = 3
+        host_start = 1; metadata_valid = 1;
+        @(posedge clk); #1;
+        @(negedge clk);
+        host_start = 0; metadata_valid = 0;
+        expect_state("T3 load-meta", S_LOAD_META);
         if (dut.total_layers_reg !== 8'd3) begin
             $error("T3: total_layers_reg=%0d expected 3", dut.total_layers_reg);
             error_count++;
         end
-        if (weight_load_en !== 1'b1) begin
-            $error("T3: weight_load_en high in PREFETCH_W");
-            error_count++;
-        end
+        step();                                   // LOAD_META -> PREFETCH_W دائماً
+        expect_state("T3->PREFETCH", S_PREFETCH_W);
 
-        // ---- T4: الطبقة الأولى external ----
-        weight_ready = 1; @(negedge clk); @(posedge clk); #1; weight_ready = 0;
-        expect_state("T4 compute", S_COMPUTE);
-        if (start_layer !== 1'b1) begin
-            $error("T4: start_layer pulse missing");
-            error_count++;
-        end
-        if (sel_external !== 1'b1) begin
-            $error("T4: sel_external high on layer 0 compute");
-            error_count++;
-        end
-        if (layer_counter_out !== 8'd1) begin
-            $error("T4: layer_counter_out=%0d expected 1", layer_counter_out);
-            error_count++;
-        end
-        @(negedge clk); @(posedge clk); #1;   // -> WAIT_DONE
-        expect_state("T4 wait", S_WAIT_DONE);
-        if (capture_loop !== 1'b1) begin
-            $error("T4: capture_loop high in WAIT_DONE");
-            error_count++;
-        end
-        if (sel_external !== 1'b0) begin
-            $error("T4: sel_external low outside first compute");
-            error_count++;
-        end
+        // ---- الطبقات الثلاث كاملة ----
+        weight_ready = 1;
+        run_full_layer(0, 0);  finish_layer(0, 0);
+        run_full_layer(1, 0);  finish_layer(1, 0);
+        run_full_layer(2, 1);  finish_layer(2, 1);
 
-        // ---- T5: الطبقة الوسطى ----
-        run_middle_layer(1);
-
-        // ---- T6: الطبقة الأخيرة -> OUTPUT_TOKEN ----
-        layer_done = 1; @(negedge clk); @(posedge clk); #1; layer_done = 0;
-        expect_state("T6 loop-check", S_LOOP_CHECK);
-        expect_state("T6 output", S_OUTPUT_TOKEN);   // انتقال فوري من LOOP_CHECK
-        if (capture_loop !== 1'b0) begin
-            $error("T6: capture_loop must stay low on final layer");
-            error_count++;
-        end
+        // ---- نحن الآن داخل OUTPUT_TOKEN (E-6: حافة واحدة بعد LOOP_CHECK) ----
+        weight_ready = 0;
+        expect_state("output-token", S_OUTPUT_TOKEN);
         if (layer_counter_out !== 8'd3) begin
-            $error("T6: layer_counter_out=%0d expected 3", layer_counter_out);
+            $error("expected layer_counter_out=3, got %0d", layer_counter_out);
             error_count++;
         end
-
-        // ---- T7: softmax_done -> IDLE ----
-        if (output_token_valid !== 1'b0) begin
-            $error("T7: output_token_valid low before softmax_done");
-            error_count++;
-        end
-        softmax_done = 1; #1;   // فحص توافقي داخل نفس دورة OUTPUT_TOKEN
         if (output_token_valid !== 1'b1) begin
-            $error("T7: output_token_valid should assert with softmax_done");
+            $error("token pulse missing in first OUTPUT_TOKEN cycle");
             error_count++;
         end
-        @(negedge clk); @(posedge clk); #1; softmax_done = 0;
-        expect_state("T7 idle", S_IDLE);
+        step();  // token_pending=0 -> IDLE والنبضة انتهت
+        expect_state("idle after token", S_IDLE);
+        if (output_token_valid !== 1'b0) begin
+            $error("token pulse must be exactly one cycle");
+            error_count++;
+        end
         if (pipeline_busy !== 1'b0) begin
-            $error("T7: pipeline_busy should drop in IDLE");
+            $error("pipeline_busy should drop in IDLE");
+            error_count++;
+        end
+        if (token_pulses_seen != 1) begin
+            $error("expected exactly 1 token pulse, saw %0d", token_pulses_seen);
             error_count++;
         end
 
-        // ---- T8: توكن ثانٍ بنموذج طبقة واحدة (الأولى = الأخيرة) ----
-        host_start = 1; @(negedge clk); @(posedge clk); #1; host_start = 0;
-        expect_state("T8 meta", S_LOAD_META);
-        if (layer_counter_out !== 8'd0) begin
-            $error("T8: counter resets at new token, got %0d", layer_counter_out);
-            error_count++;
-        end
+        // ---- توكن ثانٍ بنموذج طبقة واحدة (الأولى = الأخيرة) ----
+        @(negedge clk);
         metadata_in[7:0] = 8'd1;
-        metadata_valid = 1; @(negedge clk); @(posedge clk); #1; metadata_valid = 0;
-        expect_state("T8 prefetch", S_PREFETCH_W);
-        weight_ready = 1; @(negedge clk); @(posedge clk); #1; weight_ready = 0;
-        expect_state("T8 compute", S_COMPUTE);
-        if (capture_loop !== 1'b0) begin
-            $error("T8: single-layer model must not capture loop");
+        host_start = 1; metadata_valid = 1;
+        @(posedge clk); #1;
+        @(negedge clk);
+        host_start = 0; metadata_valid = 0;
+        expect_state("T2 meta", S_LOAD_META);
+        if (layer_counter_out !== 8'd0) begin
+            $error("counter must reset for new token, got %0d", layer_counter_out);
             error_count++;
         end
-        @(negedge clk); @(posedge clk); #1;   // WAIT_DONE
-        layer_done = 1; @(negedge clk); @(posedge clk); #1; layer_done = 0;
-        expect_state("T8 loop-check", S_LOOP_CHECK);
-        expect_state("T8 output", S_OUTPUT_TOKEN);   // انتقال فوري
-        softmax_done = 1; @(negedge clk); @(posedge clk); #1; softmax_done = 0;
-        expect_state("T8 idle", S_IDLE);
+        step();
+        expect_state("T2 prefetch", S_PREFETCH_W);
+        weight_ready = 1;
+        run_full_layer(0, 1);  finish_layer(0, 1);
+        weight_ready = 0;
+        expect_state("T2 output", S_OUTPUT_TOKEN);
+        if (output_token_valid !== 1'b1) begin
+            $error("second token pulse missing");
+            error_count++;
+        end
+        step();
+        expect_state("T2 idle final", S_IDLE);
+        if (token_pulses_seen != 2) begin
+            $error("expected 2 token pulses total, saw %0d", token_pulses_seen);
+            error_count++;
+        end
 
         if (error_count == 0)
             $display("PASS: tb_occp_pipeline_fsm - all tests passed");
