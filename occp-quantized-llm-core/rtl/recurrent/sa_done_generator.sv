@@ -1,6 +1,7 @@
 // ============================================================
 // sa_done_generator.sv
-// مولّد إشارة done حقيقية بناءً على تأخير قابل للبرمجة
+// Generates a real "done" strobe based on a programmable latency
+// counter, modeling systolic-array compute completion.
 // ============================================================
 `timescale 1ns/1ps
 
@@ -10,7 +11,7 @@ module sa_done_generator #(
     input  logic                        clk,
     input  logic                        rst_n,
     input  logic                        start,
-    input  logic [LATENCY_WIDTH-1:0]    latency_cfg,  // قابل للبرمجة
+    input  logic [LATENCY_WIDTH-1:0]    latency_cfg,  // programmable latency
     output logic                        done
 );
 

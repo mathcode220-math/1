@@ -26,10 +26,10 @@ module tb_sa_done_generator;
         latency_cfg = 8'd5;
         #11 rst_n = 1;
 
-        // اختبار 1: نبضة start مع LATENCY=5
+        // Test 1: start pulse with LATENCY=5
         @(negedge clk);
         start = 1'b1;
-        @(negedge clk);           // يُسجَّل start عند الحافة التالية
+        @(negedge clk);           // start is registered on the next edge
         start = 1'b0;
 
         cycle_count = 0;
@@ -48,7 +48,7 @@ module tb_sa_done_generator;
             $display("OK: done issued after %0d cycles (expected 5)", cycle_count);
         end
 
-        // اختبار 2: بدء جديد بعد اكتمال الأول
+        // Test 2: new start after the first completes
         @(negedge clk);
         latency_cfg = 8'd3;
         start = 1'b1;

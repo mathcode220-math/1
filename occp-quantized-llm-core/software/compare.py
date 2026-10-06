@@ -51,16 +51,16 @@ def compare() -> dict:
     }
     (RESULTS / "compare.json").write_text(json.dumps(payload, indent=2) + "\n")
     (RESULTS / "report.md").write_text(
-        f"""# تقرير المقارنة الرقمية
+        f"""# Numeric comparison report
 
-تاريخ: {payload['timestamp']}
+Date: {payload['timestamp']}
 
 - N={N} Linear+ReLU INT8
-- دورات: {cycles}
+- cycles: {cycles}
 - MAE INT: {m_int['mae']}
 - max_rel FP32: {m_fp['max_rel']:.4%}
 
-مطابقة INT: {'نجاح' if m_int['max_abs'] < 0.5 else 'فشل'}
+INT match: {'PASS' if m_int['max_abs'] < 0.5 else 'FAIL'}
 """
     )
     return payload

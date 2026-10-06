@@ -10,7 +10,7 @@ module tb_layer_loopback_mux;
     logic                       ext_valid;
     logic [DATA_WIDTH-1:0]      loop_data [0:VECTOR_LEN-1];
     logic                       loop_valid;
-    // مخرجات DUT تُوصَل بأسلاك (wire) — انظر ملاحظة التوافق في RTL
+    // DUT outputs are connected with wires — see the RTL compatibility note
     wire logic [DATA_WIDTH-1:0] mux_data  [0:VECTOR_LEN-1];
     wire logic                  mux_valid;
 
@@ -29,14 +29,14 @@ module tb_layer_loopback_mux;
     endtask
 
     initial begin
-        #1; // تجاوز زمن 0
-        // تهيئة
+        #1; // step past time 0
+        // initialize
         ext_data[0] = 8'hAA; ext_data[1] = 8'hBB; ext_data[2] = 8'hCC; ext_data[3] = 8'hDD;
         loop_data[0] = 8'h11; loop_data[1] = 8'h22; loop_data[2] = 8'h33; loop_data[3] = 8'h44;
         ext_valid = 1'b1;
         loop_valid = 1'b1;
 
-        // اختبار 1: المسار الخارجي
+        // Test 1: external path
         sel_external = 1'b1;
         #1;
         for (int i = 0; i < VECTOR_LEN; i++)
@@ -46,7 +46,7 @@ module tb_layer_loopback_mux;
             end
         check_valid("external_path", 1'b1);
 
-        // اختبار 2: مسار الحلقة
+        // Test 2: loopback path
         sel_external = 1'b0;
         #1;
         for (int i = 0; i < VECTOR_LEN; i++)
@@ -56,7 +56,7 @@ module tb_layer_loopback_mux;
             end
         check_valid("loop_path", 1'b1);
 
-        // اختبار 3: ext_valid=0 مع sel=1
+        // Test 3: ext_valid=0 with sel=1
         ext_valid = 1'b0;
         sel_external = 1'b1;
         #1;
@@ -67,7 +67,7 @@ module tb_layer_loopback_mux;
             end
         check_valid("ext_invalid", 1'b0);
 
-        // اختبار 4: loop_valid=0 مع sel=0
+        // Test 4: loop_valid=0 with sel=0
         loop_valid = 1'b0;
         sel_external = 1'b0;
         #1;

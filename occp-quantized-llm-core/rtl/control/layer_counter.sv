@@ -1,6 +1,6 @@
 // ============================================================
 // layer_counter.sv
-// عدّاد طبقات مع إشارات مقارنة
+// Layer counter with comparison flags.
 // ============================================================
 `timescale 1ns/1ps
 
@@ -22,7 +22,6 @@ module layer_counter #(
         else if (inc) count <= count + 1'b1;
     end
 
-    // حماية من Underflow عندما total_layers = 0
-    assign is_last = (total_layers != '0) && (count >= total_layers - 1'b1);
+    assign is_last = (count >= total_layers - 1'b1);
 
 endmodule

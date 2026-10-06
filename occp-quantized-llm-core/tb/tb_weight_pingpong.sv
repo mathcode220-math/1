@@ -38,11 +38,11 @@ module tb_weight_pingpong;
         read_addr = 0;
         #12 rst_n = 1;
 
-        // ---- اختبار 1: شحن البنك B عبر DMA (نقرأ من A => نكتب في B) ----
+        // ---- Test 1: fill bank B via DMA (reading from A => writing into B) ----
         buf_sel = 0;
         @(negedge clk);
         load_en = 1;
-        // نتابع dma_addr ونغذّي البيانات المطابقة له
+        // track dma_addr and feed matching data to it
         fork
             begin
                 for (int i = 0; i < WEIGHT_DEPTH; i++) begin
@@ -58,7 +58,7 @@ module tb_weight_pingpong;
         @(negedge clk);
         $display("OK: load_done pulse after full DMA round");
 
-        // قراءة B بعد التبديل
+        // read B after the swap
         buf_sel = 1;
         for (int i = 0; i < WEIGHT_DEPTH; i++) begin
             read_addr = i[$clog2(WEIGHT_DEPTH)-1:0];
@@ -70,15 +70,15 @@ module tb_weight_pingpong;
             end
         end
 
-        // ---- اختبار 2: Ping-Pong — نقرأ من A، ندمر B[5]=FE أثناء العد ----
-        buf_sel = 0;                 // نقرأ من A، نكتب في B
+        // ---- Test 2: ping-pong — read from A, write B[5]=FE while counting ----
+        buf_sel = 0;                 // read from A, write into B
         @(negedge clk);
         load_en   = 1;
-        load_data = 8'h00;           // قيم غير مهمة قبل العنوان المستهدف
-        // انتظر أن يصل عدّاد DMA إلى 5 ثم اكتب القيمة المميزة
+        load_data = 8'h00;           // don't-care values before the target address
+        // wait until the DMA counter reaches 5, then write the marker value
         while (dma_addr != 4'd5) @(negedge clk);
         load_data = 8'hFE;
-        @(negedge clk);              // الكتابة تتم على الحافة: B[5] <= FE
+        @(negedge clk);              // the write happens at the edge: B[5] <= FE
         load_en = 0;
         buf_sel = 1;
         read_addr = 4'd5;
@@ -88,7 +88,7 @@ module tb_weight_pingpong;
             error_count++;
         end
 
-        // ---- اختبار 3: bank A لم تُمس — قراءتها صفر ----
+        // ---- Test 3: bank A untouched — reads back zero ----
         buf_sel = 0;
         read_addr = 4'd0;
         #1;

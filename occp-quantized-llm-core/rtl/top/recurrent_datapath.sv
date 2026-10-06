@@ -1,31 +1,31 @@
 // ============================================================
 // recurrent_datapath.sv
-// الحلقة العودية الكاملة: MUX + Layer + Loopback Register
-// المسار خالٍ من الحلقات التوافقية: كل دورة تمر عبر سجلات.
-// ناقلات المتجهات الداخلية مسطّحة (flat) لضمان سلوك نسخ
-// متوقع ومتطابق بين جميع المحاكيات.
+// Full recurrent loop: MUX + Layer + Loopback Register
+// The datapath contains no combinational loops: every cycle passes through registers.
+// Internal vector buses are flattened so that copy behavior is
+// predictable and identical across all simulators.
 // ============================================================
 `timescale 1ns/1ps
 
 module recurrent_datapath #(
     parameter int DATA_WIDTH = 16,
     parameter int VECTOR_LEN = 512,
-    parameter int LAYER_LATENCY = 3   // تأخير محاكاة الطبقة (دورات)
+    parameter int LAYER_LATENCY = 3   // simulated layer latency (cycles)
 )(
     input  logic                         clk,
     input  logic                         rst_n,
 
-    // التحكم من FSM
+    // Control from the FSM
     input  logic                         sel_external,
     input  logic                         capture_loop,
     input  logic                         start_layer,
     output logic                         layer_done,
 
-    // واجهة خارجية
+    // External interface
     input  logic [DATA_WIDTH-1:0]        ext_data  [0:VECTOR_LEN-1],
     input  logic                         ext_valid,
 
-    // المخرج النهائي
+    // Final output
     output logic [DATA_WIDTH-1:0]        final_data [0:VECTOR_LEN-1],
     output logic                         final_valid
 );
@@ -34,7 +34,7 @@ module recurrent_datapath #(
     localparam int FLAT_W = DATA_WIDTH * VECTOR_LEN;
 
     // ----------------------------------------------------------
-    // إشارات داخلية مسطّحة
+    // Flattened internal signals
     // ----------------------------------------------------------
     logic [FLAT_W-1:0] ext_flat;
     logic [FLAT_W-1:0] mux_flat;
@@ -49,14 +49,14 @@ module recurrent_datapath #(
     logic [FLAT_W-1:0] layer_flat;
     logic              layer_valid;
 
-    // تسطيح الإدخال الخارجي عنصرًا بعنصر
+    // Flatten the external input element by element
     always_comb begin
         for (int i = 0; i < VECTOR_LEN; i++)
             ext_flat[i*DATA_WIDTH +: DATA_WIDTH] = ext_data[i];
     end
 
     // ----------------------------------------------------------
-    // MUX: خارجي مقابل مسار الحلقة (تشفير مباشر على الحزم المسطّحة)
+    // MUX: external vs loopback path (direct packing on flat buses)
     // ----------------------------------------------------------
     always_comb begin
         mux_flat  = sel_external ? ext_flat : loop_flat;
@@ -64,8 +64,8 @@ module recurrent_datapath #(
     end
 
     // ----------------------------------------------------------
-    // التقاط لحظة بدء الطبقة (شحن المعاملات إلى Systolic Array).
-    // الالتقاط يُثبّت البيانات طوال فترة الحساب فيمنع حلقة توافقية.
+    // Capture at layer start (operand loading into the systolic array).
+    // Capturing freezes the data for the whole compute window, which
     // ----------------------------------------------------------
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -81,9 +81,9 @@ module recurrent_datapath #(
     end
 
     // ----------------------------------------------------------
-    // Layer stub — في الإنتاج يُستبدل بـ systolic_array_param الحقيقي.
-    // عدّاد تنازلي يبدأ عند cap_valid؛ التسوية عندما cnt==2،
-    // وlayer_valid نبضة دورتين (cnt==2 ثم cnt==1) تغطي نافذة الالتقاط.
+    // Layer stub — in production this is replaced by the real
+    // A down-counter starts on cap_valid; settle happens at cnt==2,
+    // and layer_valid is a two-cycle pulse (cnt==2 then cnt==1) covering
     // ----------------------------------------------------------
     logic [LAT_W-1:0] cnt;
 
@@ -100,20 +100,20 @@ module recurrent_datapath #(
                 cnt <= cnt - 1'b1;
                 if (cnt == LAT_W'(2)) begin
                     layer_flat  <= cap_flat;
-                    layer_valid <= 1'b1;   // حافة التسوية
+                    layer_valid <= 1'b1;   // settle edge
                 end else if (cnt == LAT_W'(1)) begin
-                    layer_valid <= 1'b1;   // الدورة التالية: احتياطي الالتقاط
+                    layer_valid <= 1'b1;   // next cycle: capture-window spare
                 end
             end
         end
     end
 
-    // إشارة الانتهاء تُولَّد قبل دورة التسوية بواحدة حتى يلتقطها FSM
+    // The done strobe is generated one cycle before the settle cycle so the FSM
     assign layer_done = (cnt == LAT_W'(1));
 
     // ----------------------------------------------------------
-    // Loopback Register: يكسر المسار التوافقي في الحلقة
-    // (تنفيذ مسطّح مكافئ لوظيفة loopback_register)
+    // Loopback register: breaks the combinational path in the loop
+    // (flattened implementation equivalent to loopback_register)
     // ----------------------------------------------------------
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -126,7 +126,7 @@ module recurrent_datapath #(
     end
 
     // ----------------------------------------------------------
-    // المخرج النهائي: صالح عندما لا نلتقط للحلقة (الطبقة الأخيرة)
+    // Final output: valid when we are not capturing back into the loop
     // ----------------------------------------------------------
     assign final_valid = layer_valid & ~capture_loop;
 
